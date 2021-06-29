@@ -1,0 +1,7 @@
+# No build artifacts.
+src/pysolarsail.egg-info/*
+dist/
+.idea/
+
+# Generated filetypes.
+*.pyc
