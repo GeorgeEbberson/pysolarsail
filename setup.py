@@ -40,7 +40,6 @@ setup(
     packages=find_packages(where='src'),
     python_requires='>=3.6, <4',
     install_requires=[
-        "spiceypy>=3",
         "numba>=0.53",
     ],
     extras_require={

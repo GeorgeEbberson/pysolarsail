@@ -1,7 +1,11 @@
 # No build artifacts.
 src/pysolarsail.egg-info/*
 dist/
+
+# Other ignores.
 .idea/
+.tox/
 
 # Generated filetypes.
 *.pyc
+.coverage
