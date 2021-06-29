@@ -13,12 +13,19 @@ class SailProperties(object):
     H: float64
     K: float64
 
-    def __init__(self, area: float, rho: float, s: float, B_b: float, B_f: float,
-                 eps_f: float, eps_b: float):
+    def __init__(
+        self,
+        area: float,
+        rho: float,
+        s: float,
+        B_b: float,
+        B_f: float,
+        eps_f: float,
+        eps_b: float,
+    ):
         """Initialise an instance."""
         self.G = 1 + s * rho
         self.H = 1 - s * rho
         self.K = B_f * (1 - s) * rho + (1 - rho) * (
             (eps_f * B_f - eps_b * B_b) / (eps_f + eps_b)
         )
-
