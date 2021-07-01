@@ -28,8 +28,8 @@ class TestConversions(unittest.TestCase):
 
     def test_m_to_au(self):
         multiple = random()
-        self.assertEqual(m_to_au(multiple * M_PER_AU), multiple)
+        self.assertAlmostEqual(m_to_au(multiple * M_PER_AU), multiple)
 
     def test_au_to_m(self):
         multiple = random()
-        self.assertEqual(au_to_m(multiple / M_PER_AU), multiple)
+        self.assertAlmostEqual(au_to_m(multiple / M_PER_AU), multiple)
