@@ -4,3 +4,13 @@ requires = [
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+warn_return_any = true
+warn_unused_configs = true
+files = "src/pysolarsail/**/*.py"
+plugins = "numpy.typing.mypy_plugin"
+
+[[tool.mypy.overrides]]
+module = "numba.*"
+ignore_missing_imports = true
