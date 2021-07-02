@@ -7,13 +7,10 @@ from datetime import datetime
 from os import chdir, getcwd
 from os.path import dirname
 from types import TracebackType
-from typing import Any, Callable, Iterable, Union
+from typing import Any, Callable, Union, cast
 
 import numpy as np
 import spiceypy
-
-# Convenience type definitions.
-StrOrIterStr = Union[str, Iterable[str]]
 
 # Default frame should be J2000 (which implicitly makes everything relative to the
 # ICRF), with no corrections, and we want to calculate positions to the solar system
@@ -53,7 +50,7 @@ class SpiceKernel(ContextDecorator):
         )
 
     @_in_spice_dir
-    def __exit__(self, exc, exca, exc_trace: TracebackType) -> None:
+    def __exit__(self, exc: Any, exca: Any, exc_trace: TracebackType) -> None:
         spiceypy.unload(self.kernel_file)
         logging.info(
             f"Unloaded {self.kernel_file}, {spiceypy.ktotal('ALL')} kernels still "
@@ -73,8 +70,8 @@ def get_vel(name: str, times: Union[float, np.ndarray]) -> np.ndarray:
     if type(state) is list:
         vel = np.vstack(state)[:, 3:6]
     else:
-        vel = state[3:6]
-    return vel
+        vel = cast(np.ndarray, state)[3:6]
+    return cast(np.ndarray, vel)
 
 
 def get_eph_time(time: datetime) -> float:
@@ -84,12 +81,12 @@ def get_eph_time(time: datetime) -> float:
 
 def get_mean_radius(name: str) -> float:
     """Return the mean radius of a given planet."""
-    return np.mean(spiceypy.bodvrd(name, "RADII", maxn=3)[1])
+    return cast(float, np.mean(spiceypy.bodvrd(name, "RADII", maxn=3)[1]))
 
 
 def get_gravity(name: str) -> float:
     """Return the gravitation (G * M) for a body."""
-    return spiceypy.bodvrd(name, "GM", maxn=1)[1][0]
+    return cast(float, spiceypy.bodvrd(name, "GM", maxn=1)[1][0])
 
 
 # Useful stuff = https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/index.html
