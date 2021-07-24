@@ -20,11 +20,24 @@ def unload(filename: Union[str, Iterable[str]]) -> None: ...
 
 
 def spkezr(
-    targ: str, et: Union[ndarray, float], ref: str, abcorr: str, obs: str
-) -> Union[Tuple[ndarray, float], Tuple[Iterable[ndarray], Iterable[float]]]: ...
+    targ: str,
+    et: float,
+    ref: str,
+    abcorr: str,
+    obs: str,
+) -> Tuple[ndarray, float]: ...
 
 
 def str2et(time: str) -> float: ...
 
 
 def bodvrd(bodynm: str, item: str, maxn: int) -> Tuple[int, ndarray]: ...
+
+
+def j2000() -> float: ...
+
+
+def clight() -> float: ...
+
+
+def spd() -> float: ...

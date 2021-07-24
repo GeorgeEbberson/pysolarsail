@@ -1,9 +1,9 @@
 """
 Unit test that always passes for CI's sake.
 """
-import unittest
+from ..common_test_utils import TestCase
 
 
-class TestAlwaysPass(unittest.TestCase):
+class TestAlwaysPass(TestCase):
     def test_always_pass(self):
         self.assertTrue(True)

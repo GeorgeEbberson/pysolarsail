@@ -1,19 +1,19 @@
 """
 Tests for sail_properties.py.
 """
-import unittest
-
 import numpy as np
 from parameterized import parameterized
 
 from pysolarsail.sail_properties import SailProperties, ideal_sail, wright_sail
 from pysolarsail.units import SOLAR_IRRADIANCE_W_M2, SPEED_OF_LIGHT_M_S
 
+from ..common_test_utils import TestCase
+
 WRIGHT_SAIL = wright_sail(1)
 IDEAL_SAIL = ideal_sail(1)
 
 
-class TestSailProperties(unittest.TestCase):
+class TestSailProperties(TestCase):
     """Tests for the sail properties routines."""
 
     @parameterized.expand(

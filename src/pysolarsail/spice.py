@@ -2,15 +2,16 @@
 Interactions with SPICE.
 """
 import logging
-from contextlib import ContextDecorator
+from contextlib import ContextDecorator, contextmanager
 from datetime import datetime
-from os import chdir, getcwd
-from os.path import dirname
+from os import chdir
+from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, Union, cast
+from typing import Any, Generator, Iterable, Union, cast
 
 import numpy as np
 import spiceypy
+from numba import njit, objmode
 
 # Default frame should be J2000 (which implicitly makes everything relative to the
 # ICRF), with no corrections, and we want to calculate positions to the solar system
@@ -20,76 +21,140 @@ CORRECTION = "NONE"
 REFERENCE = "SOLAR SYSTEM BARYCENTER"
 
 
-def _in_spice_dir(func: Callable) -> Callable:
-    """Decorator used in the SpiceKernel context manager to load in a given folder."""
+@contextmanager
+def _change_dir(change: bool, target_dir: Path) -> Generator[None, None, None]:
+    """Change directory to target_dir if change is True."""
+    orig_dir = Path.cwd()
+    try:
+        if change:
+            chdir(target_dir)
+        yield
 
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        """Move to SPICE_FOLDER and run func()."""
-        orig_dir = getcwd()
-        chdir(args[0].kernel_dir)  # Because args[0] should always be the instance.
-        output = func(*args, **kwargs)
-        chdir(orig_dir)
-        return output
+    finally:
+        if change:
+            chdir(orig_dir)
 
-    return wrapper
+
+def _make_path(file_string: str) -> Path:
+    """Convert a kernel filename string to a Path object and check it is valid."""
+    path = Path(file_string)
+    if not path.is_file():
+        raise FileNotFoundError(f"File {path.name} is not a valid file.")
+    return path
 
 
 class SpiceKernel(ContextDecorator):
-    """Context manager for having spice loaded."""
+    """Context manager for loading and unloading SPICE kernels.
 
-    def __init__(self, kernel_file: str) -> None:
-        self.kernel_file = kernel_file
-        self.kernel_dir = dirname(self.kernel_file)
+    Loads the kernel(s) given using `spiceypy.furnsh()` and unloads them using
+    `spiceypy.unload()` when the context is exited. Can also be called as a decorator
+    around a function, which treats the entire function as being in context (i.e. the
+    entire function is executed with the kernels loaded).
 
-    @_in_spice_dir
+    :param kernel_files: A kernel file or list of kernel files to load.
+    :param allow_change_dir: Whether to change folder to load kernels. Defaults true.
+    """
+
+    def __init__(
+        self,
+        kernel_files: Union[str, Iterable[str]],
+        allow_change_dir: bool = True,
+    ) -> None:
+        """Initialise the context and check all given files are valid."""
+
+        # If we've been given a single string, make it a list so we can just work on
+        # iterable sequences in the class.
+        if isinstance(kernel_files, str):
+            kernel_files = [kernel_files]
+
+        # Now check each string in the list is a file, and convert to a list of pathlib
+        # Path() objects.
+        self.kernel_file_list = [_make_path(x) for x in kernel_files]
+        self.allow_change_dir = allow_change_dir
+
     def __enter__(self) -> None:
-        """Move to spice directory, load spice kernel."""
-        spiceypy.furnsh(self.kernel_file)
-        logging.info(
-            f"Loaded {self.kernel_file}, {spiceypy.ktotal('ALL')} kernels now loaded."
-        )
+        """Move to the directory of each kernel, then load it using `furnsh`."""
+        for kernel in self.kernel_file_list:
+            with _change_dir(self.allow_change_dir, kernel.parent):
+                spiceypy.furnsh(str(kernel))
+                logging.info(
+                    f"Loaded {kernel.name}, {spiceypy.ktotal('ALL')} kernels now "
+                    f"loaded."
+                )
 
-    @_in_spice_dir
-    def __exit__(self, exc: Any, exca: Any, exc_trace: TracebackType) -> None:
-        spiceypy.unload(self.kernel_file)
-        logging.info(
-            f"Unloaded {self.kernel_file}, {spiceypy.ktotal('ALL')} kernels still "
-            f"loaded"
-        )
+    def __exit__(self, exc: Any, exca: Any, excb: TracebackType) -> None:
+        for kernel in self.kernel_file_list:
+            with _change_dir(self.allow_change_dir, kernel.parent):
+                spiceypy.unload(str(kernel))
+                logging.info(
+                    f"Unloaded {kernel.name}, {spiceypy.ktotal('ALL')} kernels still "
+                    f"loaded"
+                )
 
 
-def get_pos(name: str, times: Union[float, np.ndarray]) -> np.ndarray:
+@njit
+def get_pos(name: str, eph_time: float) -> np.ndarray:
     """Get the position of a planet from spice, in km."""
-    pos, _ = spiceypy.spkpos(name, times, FRAME, CORRECTION, REFERENCE)
+    with objmode(pos="float64[::1]"):
+        pos, _ = spiceypy.spkpos(name, eph_time, FRAME, CORRECTION, REFERENCE)
     return pos
 
 
-def get_vel(name: str, times: Union[float, np.ndarray]) -> np.ndarray:
+@njit
+def get_vel(name: str, eph_time: float) -> np.ndarray:
     """Get the velocity of a planet from spice, in km/s."""
-    state, _ = spiceypy.spkezr(name, times, FRAME, CORRECTION, REFERENCE)
-    if type(state) is list:
-        vel = np.vstack(state)[:, 3:6]
-    else:
-        vel = cast(np.ndarray, state)[3:6]
-    return cast(np.ndarray, vel)
+    with objmode(vel="float64[::1]"):
+        state, _ = spiceypy.spkezr(name, eph_time, FRAME, CORRECTION, REFERENCE)
+        vel = cast(np.ndarray, state[3:6])
+    return vel
 
 
-def get_eph_time(time: datetime) -> float:
+@njit
+def get_eph_time(time: np.datetime64) -> float:
     """Convert a python datetime to an ephemeris time."""
-    return spiceypy.str2et(time.isoformat())
+    with objmode(et="float64"):
+        et = spiceypy.str2et(np.datetime_as_string(time))
+    return et
 
 
+@njit
 def get_mean_radius(name: str) -> float:
     """Return the mean radius of a given planet."""
-    return cast(float, np.mean(spiceypy.bodvrd(name, "RADII", maxn=3)[1]))
+    with objmode(rad="float64[::1]"):
+        _, rad = spiceypy.bodvrd(name, "RADII", maxn=3)
+    return cast(float, np.mean(rad))
 
 
+@njit
 def get_gravity(name: str) -> float:
-    """Return the gravitation (G * M) for a body."""
-    return cast(float, spiceypy.bodvrd(name, "GM", maxn=1)[1][0])
+    """Return the gravitational parameter (G * M) for a body."""
+    with objmode(gm="float64"):
+        gm = cast(float, spiceypy.bodvrd(name, "GM", maxn=1)[1])
+    return gm * (1000 ** 3)  # SPICE uses km^3 / s^2
+
+
+def check_kernels_loaded(
+    name: str,
+    start_date: datetime,
+    end_date: datetime,
+) -> bool:
+    """Check that kernel data is loaded for the given body between the given times."""
+
+    window = (get_eph_time(start_date), get_eph_time(end_date))
+    body = spiceypy.bods2c(name)
+
+    for idx in range(spiceypy.ktotal("SPK")):
+        data = spiceypy.kdata(idx, "SPK")
+        file = str(Path(data[2]).parent / data[0])
+        for idcode in spiceypy.spkobj(file):
+            win = spiceypy.spkcov(file, idcode)
+            for j in range(spiceypy.wncard(win)):
+                win_begin, win_end = spiceypy.wnfetd(win, j)
+                if win_begin < window[0] and win_end > window[1] and idcode == body:
+                    return True
+
+    return False
 
 
 # Useful stuff = https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/index.html
-# clight() returns the speed of light in km/s
 # j2000() returns the time of j2000
-# spd() returns seconds per day
