@@ -137,35 +137,43 @@ def get_init_state(craft: SolarSailcraft) -> Tuple[np.ndarray]:
 
 
 @njit
+def compute_k(time, X, timestep, model, craft):
+    """Calculate yk+1 and zk+1."""
+    times = time + RKF_H_COEFFS * timestep
+    k = np.zeros((6, 2, 3))
+    for idx in range(6):
+        k[idx, :, :] = timestep * rkf_rhs(
+            times[idx],
+            X + np.sum(RKF_K_COEFFS[idx] * k, axis=0),
+            model,
+            craft,
+        )
+    return k
+
+
+@njit
 def solve_rkf(craft, start_time, end_time, init_time_step, model):
     """Run the RKF algorithm."""
     dt = init_time_step
     X = get_init_state(craft)
     t = start_time
-    k = np.zeros((6, 2, 3))
+
+    tol = 1e3
 
     while t < end_time:
-        times = t + RKF_H_COEFFS * dt
 
-        for idx in range(6):
-            k[idx, :, :] = dt * rkf_rhs(
-                times[idx],
-                X + np.sum(RKF_K_COEFFS[idx] * k, axis=0),
-                model,
-                craft,
-            )
+        k = compute_k(t, X, dt, model, craft)
 
         y_kplus1 = X + np.sum(RKF_YPLUS_COEFFS * k, axis=0)
         z_kplus1 = X + np.sum(RKF_ZPLUS_COEFFS * k, axis=0)
 
-        # Now find s, and use sh as the actual stepsize (i.e. y_kplus1actual is given
-        # using sh as the stepsize.
+        s = np.power((tol * dt) / (2 * np.linalg.norm(z_kplus1 - y_kplus1)), 0.25)
+        real_time_step = s * dt
 
-        t = t + dt
-        print("\n\n ===")
-        print(k)
-        print(X)
-        print(t)
+        k_real = compute_k(t, X, real_time_step, model, craft)
+        X += np.sum(RKF_YPLUS_COEFFS * k_real, axis=0)
+
+        t += real_time_step
     return None
 
 
@@ -187,4 +195,4 @@ if __name__ == "__main__":
             wright_sail(float(800 * 800)),
         )
 
-        a = solve_rkf(craft, start_time, end_time, init_step, planets)
+        solve_rkf(craft, start_time, end_time, init_step, planets)
