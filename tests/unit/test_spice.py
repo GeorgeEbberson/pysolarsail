@@ -31,18 +31,17 @@ class TestSpiceUnit(TestCase):
     def test_get_pos(self) -> None:
         """Check that only the first return value is kept and that spkpos is called
         only once."""
-        with patch("spiceypy.spkpos") as spkpos, patch("spiceypy.str2et") as str2et:
+        with patch("spiceypy.spkpos") as spkpos:
             ret_val = (np.array([0, 0, 0]), DISCARDED)
             spkpos.return_value = ret_val
             self.assertArrayEqual(get_pos(SUN, NAT), ret_val[0])
             spkpos.assert_called_once()
             self.assertEqual(len(spkpos.call_args[0]), 5)
-            str2et.assert_called_once()
 
     def test_get_vel(self) -> None:
         """Check that spkezr is called once and that the output array is always
         N-by-3, regardless of input length."""
-        with patch("spiceypy.spkezr") as spkezr, patch("spiceypy.str2et") as str2et:
+        with patch("spiceypy.spkezr") as spkezr:
             spkezr.return_value = (
                 np.array([DISCARDED, DISCARDED, DISCARDED, 1, 2, 3]),
                 DISCARDED,
@@ -52,7 +51,6 @@ class TestSpiceUnit(TestCase):
             self.assertEqual(result.shape[-1], 3)
             spkezr.assert_called_once()
             self.assertEqual(len(spkezr.call_args[0]), 5)
-            str2et.assert_called_once()
 
     def test_get_eph_time(self) -> None:
         """Simple check that the isoformat method is called (i.e. we've cast to a
@@ -80,7 +78,7 @@ class TestSpiceUnit(TestCase):
             bodvrd.return_value = (DISCARDED, np.array([1]))
             result = get_gravity(SUN)
             self.assertEqual(bodvrd.call_args[0][1], "GM")
-            self.assertEqual(result, float(1))
+            self.assertEqual(result, float(1_000_000_000))
 
 
 class TestSpiceIntegration(TestCase):

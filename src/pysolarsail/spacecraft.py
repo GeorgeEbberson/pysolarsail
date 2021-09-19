@@ -4,6 +4,7 @@ The basic spacecraft class.
 from datetime import datetime
 from typing import Iterable, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 from numba import float64, njit
 from numba.experimental import jitclass
@@ -11,7 +12,7 @@ from numba.typed import List
 
 from pysolarsail.bodies import SpiceBody
 from pysolarsail.numba_utils import class_spec
-from pysolarsail.sail_properties import SailProperties, wright_sail
+from pysolarsail.sail_properties import SailProperties, null_sail, wright_sail
 from pysolarsail.spice import SpiceKernel, get_eph_time
 from pysolarsail.units import M_PER_AU, SPEED_OF_LIGHT_M_S
 
@@ -131,7 +132,7 @@ def rkf_rhs(
 
 
 @njit
-def get_init_state(craft: SolarSailcraft) -> Tuple[np.ndarray]:
+def get_init_state(craft: SolarSailcraft) -> np.ndarray:
     """Get the initial state."""
     return np.vstack((craft.pos_m, craft.vel_m_s))
 
@@ -151,48 +152,101 @@ def compute_k(time, X, timestep, model, craft):
     return k
 
 
+
 @njit
-def solve_rkf(craft, start_time, end_time, init_time_step, model):
+def find_optimal_stepsize(t, X, dt, model, craft, tol):
+    """Return the optimal stepsize."""
+    k = compute_k(t, X, dt, model, craft)
+    y_kplus1 = X + np.sum(RKF_YPLUS_COEFFS * k, axis=0)
+    z_kplus1 = X + np.sum(RKF_ZPLUS_COEFFS * k, axis=0)
+
+    # Compare the two to find the optimal stepsize.
+    s = np.power((tol * dt) / (2 * np.linalg.norm(z_kplus1 - y_kplus1)), 0.25)
+    return s * dt
+
+
+@njit
+def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=0.1):
     """Run the RKF algorithm."""
     dt = init_time_step
     X = get_init_state(craft)
     t = start_time
 
-    tol = 1e3
+    n_cols = 8
+    results_list = [[0] * n_cols]
 
     while t < end_time:
 
-        k = compute_k(t, X, dt, model, craft)
+        real_time_step = find_optimal_stepsize(t, X, dt, model, craft, tol)
 
-        y_kplus1 = X + np.sum(RKF_YPLUS_COEFFS * k, axis=0)
-        z_kplus1 = X + np.sum(RKF_ZPLUS_COEFFS * k, axis=0)
-
-        s = np.power((tol * dt) / (2 * np.linalg.norm(z_kplus1 - y_kplus1)), 0.25)
-        real_time_step = s * dt
-
+        # Finally find the real k and find the real state.
         k_real = compute_k(t, X, real_time_step, model, craft)
         X += np.sum(RKF_YPLUS_COEFFS * k_real, axis=0)
 
+        # Write the output data.
+        results_list.append(
+            [t, real_time_step, X[0, 0], X[0, 1], X[0, 2], X[1, 0], X[1, 1], X[1, 2]]
+        )
+
+        # Increment time for next timestep.
         t += real_time_step
-    return None
+        dt = real_time_step
+
+    return np.array(results_list)
 
 
 if __name__ == "__main__":
     with SpiceKernel(r"D:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
-        start_time = get_eph_time(np.datetime64(datetime(2020, 1, 1)))
-        end_time = get_eph_time(np.datetime64(datetime(2020, 1, 10)))
-        init_step = float(86400)
+        start_time = get_eph_time(np.datetime64(datetime(2003, 1, 15, 12)))
+        end_time = get_eph_time(np.datetime64(datetime(2004, 8, 11, 12)))
 
         sun = SpiceBody("Sun", start_time, end_time, radiation=1368)
+        mercury = SpiceBody("Mercury", start_time, end_time)
+        venus = SpiceBody("Venus", start_time, end_time)
         earth = SpiceBody("Earth", start_time, end_time)
+        mars = SpiceBody("Mars", start_time, end_time)
+        jupiter = SpiceBody("Jupiter", start_time, end_time)
+        saturn = SpiceBody("Saturn", start_time, end_time)
+        uranus = SpiceBody("Uranus", start_time, end_time)
+        neptune = SpiceBody("Neptune", start_time, end_time)
+        pluto = SpiceBody("Pluto", start_time, end_time)
         planets = List()  # numba typed list avoids reflected list problems.
         planets.append(sun)
-        planets.append(earth)
+        planets.append(mercury)
+        planets.append(venus)
+        # planets.append(earth)
+        planets.append(mars)
+        planets.append(jupiter)
+        planets.append(saturn)
+        planets.append(uranus)
+        planets.append(neptune)
+        planets.append(pluto)
 
         craft = SolarSailcraft(
-            np.array([0, 0, 0], dtype=np.float64),
-            np.array([1, 0, 0], dtype=np.float64),
-            wright_sail(float(800 * 800)),
+            earth.pos_m,
+            earth.vel_m_s,
+            # wright_sail(float(800 * 800)),
+            null_sail(),
         )
 
-        solve_rkf(craft, start_time, end_time, init_step, planets)
+        a = solve_rkf(craft, start_time, end_time, planets)
+        print(a)
+        fig = plt.figure()
+        plt.plot(a[:, 2] / M_PER_AU, a[:, 3] / M_PER_AU)
+        ax = plt.gca()
+        ax.spines['top'].set_color('none')
+        ax.spines['left'].set_position('zero')
+        ax.spines['right'].set_color('none')
+        ax.spines['bottom'].set_position('zero')
+
+        fig2 = plt.figure()
+        plt.plot(a[:, 0], a[:, 1], label="real_time_step")
+        plt.plot(a[:, 0], a[:, 2], label="X[0,0]")
+        plt.plot(a[:, 0], a[:, 3], label="X[0,1]")
+        plt.plot(a[:, 0], a[:, 4], label="X[0,2]")
+        plt.plot(a[:, 0], a[:, 5], label="X[1,0]")
+        plt.plot(a[:, 0], a[:, 6], label="X[1,1]")
+        plt.plot(a[:, 0], a[:, 7], label="X[1,2]")
+        plt.legend()
+
+        plt.show()

@@ -2,7 +2,7 @@
 Stores and handles sail optical properties and generates the sail properties object.
 """
 import numpy as np
-from numba import float64, jit
+from numba import float64, njit
 from numba.experimental import jitclass
 
 SAIL_PROPERTIES_SPEC = [
@@ -85,13 +85,19 @@ class SailProperties(object):
         )
 
 
-@jit
+@njit
 def wright_sail(area: float) -> SailProperties:
     """Returns a sail with optical properties as given by Wright, and given area."""
     return SailProperties(area, 0.88, 0.94, 0.79, 0.55, 0.05, 0.55)
 
 
-@jit
+@njit
 def ideal_sail(area: float) -> SailProperties:
     """Returns a sail with theoretical ideal optical propeties, and given area."""
     return SailProperties(area, 1, 1, 0, 1, 1, 1)
+
+
+@njit
+def null_sail() -> SailProperties:
+    """Return a sail that does nothing."""
+    return ideal_sail(0)
