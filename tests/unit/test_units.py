@@ -4,6 +4,8 @@ Test the units module from pysolarsail.
 import re
 from random import random
 
+import pytest
+
 import pysolarsail.units
 from pysolarsail.units import M_PER_AU, au_to_m, m_to_au
 
@@ -13,6 +15,7 @@ from ..common_test_utils import TestCase
 CONSTANT_REGEX = re.compile("[A-Z][A-Z0-9_]+")
 
 
+@pytest.mark.unit
 class TestConstants(TestCase):
     """Ensure that all constants exist and are floats."""
 
@@ -24,6 +27,7 @@ class TestConstants(TestCase):
                 self.assertIsInstance(getattr(pysolarsail.units, name), float)
 
 
+@pytest.mark.unit
 class TestConversions(TestCase):
     """Very simple conversion tests."""
 

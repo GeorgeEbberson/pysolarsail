@@ -152,7 +152,6 @@ def compute_k(time, X, timestep, model, craft):
     return k
 
 
-
 @njit
 def find_optimal_stepsize(t, X, dt, model, craft, tol):
     """Return the optimal stepsize."""
@@ -161,18 +160,18 @@ def find_optimal_stepsize(t, X, dt, model, craft, tol):
     z_kplus1 = X + np.sum(RKF_ZPLUS_COEFFS * k, axis=0)
 
     # Compare the two to find the optimal stepsize.
-    s = np.power((tol * dt) / (2 * np.linalg.norm(z_kplus1 - y_kplus1)), 0.25)
-    return s * dt
+    s = np.power((tol * dt) / (2 * np.max(np.abs(z_kplus1 - y_kplus1))), 0.25)
+    return np.min([s * dt, 86400])
 
 
 @njit
-def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=0.1):
+def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-7):
     """Run the RKF algorithm."""
     dt = init_time_step
     X = get_init_state(craft)
     t = start_time
 
-    n_cols = 8
+    n_cols = 8 + 3 * len(model)
     results_list = [[0] * n_cols]
 
     while t < end_time:
@@ -184,9 +183,14 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=0.1)
         X += np.sum(RKF_YPLUS_COEFFS * k_real, axis=0)
 
         # Write the output data.
-        results_list.append(
-            [t, real_time_step, X[0, 0], X[0, 1], X[0, 2], X[1, 0], X[1, 1], X[1, 2]]
-        )
+        results = [
+            t,
+            real_time_step,
+            X[0, 0], X[0, 1], X[0, 2],
+            X[1, 0], X[1, 1], X[1, 2]
+        ]
+        positions = sum([body.pos_m.tolist() for body in model], [])
+        results_list.append(results + positions)
 
         # Increment time for next timestep.
         t += real_time_step
@@ -214,7 +218,7 @@ if __name__ == "__main__":
         planets.append(sun)
         planets.append(mercury)
         planets.append(venus)
-        # planets.append(earth)
+        planets.append(earth)
         planets.append(mars)
         planets.append(jupiter)
         planets.append(saturn)
@@ -223,7 +227,7 @@ if __name__ == "__main__":
         planets.append(pluto)
 
         craft = SolarSailcraft(
-            earth.pos_m,
+            earth.pos_m + np.array([8_000_000, 0, 0]),
             earth.vel_m_s,
             # wright_sail(float(800 * 800)),
             null_sail(),
@@ -233,20 +237,22 @@ if __name__ == "__main__":
         print(a)
         fig = plt.figure()
         plt.plot(a[:, 2] / M_PER_AU, a[:, 3] / M_PER_AU)
+        plt.plot(a[:, 11] / M_PER_AU, a[:, 12] / M_PER_AU)
         ax = plt.gca()
         ax.spines['top'].set_color('none')
         ax.spines['left'].set_position('zero')
         ax.spines['right'].set_color('none')
         ax.spines['bottom'].set_position('zero')
+        ax.axis("equal")
 
         fig2 = plt.figure()
-        plt.plot(a[:, 0], a[:, 1], label="real_time_step")
-        plt.plot(a[:, 0], a[:, 2], label="X[0,0]")
-        plt.plot(a[:, 0], a[:, 3], label="X[0,1]")
-        plt.plot(a[:, 0], a[:, 4], label="X[0,2]")
-        plt.plot(a[:, 0], a[:, 5], label="X[1,0]")
-        plt.plot(a[:, 0], a[:, 6], label="X[1,1]")
-        plt.plot(a[:, 0], a[:, 7], label="X[1,2]")
+        plt.plot(a[:, 1], label="real_time_step")
+        # plt.plot(a[:, 0], a[:, 2], label="X[0,0]")
+        # plt.plot(a[:, 0], a[:, 3], label="X[0,1]")
+        # plt.plot(a[:, 0], a[:, 4], label="X[0,2]")
+        # plt.plot(a[:, 0], a[:, 5], label="X[1,0]")
+        # plt.plot(a[:, 0], a[:, 6], label="X[1,1]")
+        # plt.plot(a[:, 0], a[:, 7], label="X[1,2]")
         plt.legend()
 
         plt.show()

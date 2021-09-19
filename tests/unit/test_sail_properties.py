@@ -4,6 +4,7 @@ Tests for sail_properties.py.
 from collections import namedtuple
 
 import numpy as np
+import pytest
 from parameterized import parameterized
 
 from pysolarsail.sail_properties import SailProperties, ideal_sail, wright_sail
@@ -26,6 +27,7 @@ WRIGHT_CASE1 = SailPropertiesCase(
 )
 
 
+@pytest.mark.unit
 class TestSailProperties(TestCase):
     """Tests for the sail properties routines."""
 

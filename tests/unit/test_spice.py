@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 import spiceypy
 
 from pysolarsail.spice import (
@@ -25,6 +26,7 @@ DISCARDED = np.inf
 STRING = "I'm a string!"
 
 
+@pytest.mark.unit
 class TestSpiceUnit(TestCase):
     """Unit tests for the spice-accessing functions (spiceypy mocked)."""
 
@@ -81,6 +83,7 @@ class TestSpiceUnit(TestCase):
             self.assertEqual(result, float(1_000_000_000))
 
 
+@pytest.mark.integration
 class TestSpiceIntegration(TestCase):
     """More integration-y tests for spice-accessing functions (spiceypy not mocked)."""
 

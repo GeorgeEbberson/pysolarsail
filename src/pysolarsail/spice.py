@@ -97,7 +97,7 @@ def get_pos(name: str, eph_time: float) -> np.ndarray:
     """Get the position of a planet from spice, in km."""
     with objmode(pos="float64[::1]"):
         pos, _ = spiceypy.spkpos(name, eph_time, FRAME, CORRECTION, REFERENCE)
-    return pos
+    return pos * 1000
 
 
 @njit
@@ -106,7 +106,7 @@ def get_vel(name: str, eph_time: float) -> np.ndarray:
     with objmode(vel="float64[::1]"):
         state, _ = spiceypy.spkezr(name, eph_time, FRAME, CORRECTION, REFERENCE)
         vel = cast(np.ndarray, state[3:6])
-    return vel
+    return vel * 1000
 
 
 @njit

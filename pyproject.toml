@@ -21,3 +21,10 @@ ignore_missing_imports = true
 
 [tool.isort]
 known_third_party = "spiceypy"
+
+[tool.pytest.ini_options]
+markers = [
+    "unit: Unit tests.",
+    "integration: Integration tests.",
+    "validation: Validation tests."
+]

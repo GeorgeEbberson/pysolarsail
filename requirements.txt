@@ -1,3 +1,4 @@
 numba>=0.54
 numpy>=1.20
 spiceypy>=4
+matplotlib
