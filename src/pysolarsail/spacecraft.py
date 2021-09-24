@@ -6,7 +6,7 @@ from typing import Iterable, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from numba import float64, njit
+from numba import float64, njit, objmode
 from numba.experimental import jitclass
 from numba.typed import List
 
@@ -14,7 +14,7 @@ from pysolarsail.bodies import SpiceBody
 from pysolarsail.numba_utils import class_spec
 from pysolarsail.sail_properties import SailProperties, null_sail, wright_sail
 from pysolarsail.spice import SpiceKernel, get_eph_time
-from pysolarsail.units import M_PER_AU, SPEED_OF_LIGHT_M_S
+from pysolarsail.units import M_PER_AU, SECS_PER_DAY, SPEED_OF_LIGHT_M_S
 
 # These coefficients are taken from
 # https://maths.cnam.fr/IMG/pdf/RungeKuttaFehlbergProof.pdf
@@ -59,6 +59,8 @@ SOLAR_SAILCRAFT_SPEC = [
     ("alpha_rad", float64),
     ("beta_rad", float64),
     ("mass", float64),
+    ("_alpha_steering_angles", float64[:, ::1]),
+    ("_beta_steering_angles", float64[:, ::1]),
 ]
 
 
@@ -66,17 +68,46 @@ SOLAR_SAILCRAFT_SPEC = [
 class SolarSailcraft(object):
     """The base class for a solar sail spacecraft."""
 
-    def __init__(self, pos: np.ndarray, vel: np.ndarray, sail: SailProperties) -> None:
+    def __init__(
+        self,
+        pos: np.ndarray,
+        vel: np.ndarray,
+        sail: SailProperties,
+        alpha_file: str,
+        beta_file: str,
+        start_time: float,
+    ) -> None:
         """Create a new class instance."""
         self.pos_m = pos
         self.vel_m_s = vel
         self.sail = sail
-        self.alpha_rad = 0
-        self.beta_rad = 0
-        self.mass = 1
+        self.alpha_rad = np.nan
+        self.beta_rad = np.nan
+        self.mass = 1000
+
+        self._alpha_steering_angles = _load_csv(alpha_file, start_time)
+        self._beta_steering_angles = _load_csv(beta_file, start_time)
 
     def set_time(self, time: float):
-        return None
+        self.alpha_rad = np.interp(
+            time,
+            self._alpha_steering_angles[:, 0],
+            self._alpha_steering_angles[:, 1],
+        )
+        self.beta_rad = np.interp(
+            time,
+            self._beta_steering_angles[:, 0],
+            self._beta_steering_angles[:, 1],
+        )
+
+
+@njit
+def _load_csv(file, start):
+    """Use object mode to load a csv and return it."""
+    with objmode(data="float64[:, ::1]"):
+        data = np.loadtxt(file, delimiter=",")
+    data[:, 0] = (data[:, 0] * SECS_PER_DAY) + start
+    return data
 
 
 @njit
@@ -94,6 +125,8 @@ def solarsail_acceleration(
     """Calculate the acceleration on a solar sailcraft given some planets and stars."""
     accel = np.zeros((3,), dtype=np.float64)
     for body in bodies:
+        if not body.gravity:
+            continue
         craft_to_body_unit_vec, rad = unit_vector_and_mag(body.pos_m - craft.pos_m)
         sail_contrib = (
             (
@@ -117,7 +150,7 @@ def rkf_rhs(
     state: Tuple[np.array],
     bodies: Iterable[SpiceBody],
     craft: SolarSailcraft,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """The righthand side of the Runge-Kutta-Fehlberg equation of motion.
 
     This should return a 2-vector of the velocity vector and the acceleration vector at
@@ -200,7 +233,7 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-7
 
 
 if __name__ == "__main__":
-    with SpiceKernel(r"D:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
+    with SpiceKernel(r"C:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
         start_time = get_eph_time(np.datetime64(datetime(2003, 1, 15, 12)))
         end_time = get_eph_time(np.datetime64(datetime(2004, 8, 11, 12)))
 
@@ -214,6 +247,7 @@ if __name__ == "__main__":
         uranus = SpiceBody("Uranus", start_time, end_time)
         neptune = SpiceBody("Neptune", start_time, end_time)
         pluto = SpiceBody("Pluto", start_time, end_time)
+
         planets = List()  # numba typed list avoids reflected list problems.
         planets.append(sun)
         planets.append(mercury)
@@ -231,6 +265,9 @@ if __name__ == "__main__":
             earth.vel_m_s,
             # wright_sail(float(800 * 800)),
             null_sail(),
+            r"C:\dev\solarsail\data\dachwald_mercury_alpha.csv",
+            r"C:\dev\solarsail\data\dachwald_mercury_beta.csv",
+            start_time,
         )
 
         a = solve_rkf(craft, start_time, end_time, planets)

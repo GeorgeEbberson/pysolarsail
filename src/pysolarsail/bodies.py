@@ -4,7 +4,7 @@ Solar system bodies.
 from datetime import datetime
 
 import numpy as np
-from numba import float64, types
+from numba import boolean, float64, types
 from numba.experimental import jitclass
 
 from pysolarsail.spice import SpiceKernel, get_gravity, get_pos, get_vel
@@ -15,6 +15,7 @@ SPICE_BODY_SPEC = [
     ("vel_m_s", float64[::1]),
     ("gravitation_parameter_m3_s2", float64),
     ("radiation_w_m2", float64),
+    ("gravity", boolean)
 ]
 
 
@@ -28,6 +29,7 @@ class SpiceBody(object):
         start_eph_time: float,
         end_eph_time: float,
         radiation: float = 0,
+        gravity: bool = True,
     ) -> None:
         """Initialise the instance, and check that spice has the correct data
         loaded (i.e. there are kernels loaded for the correct times).
@@ -37,6 +39,7 @@ class SpiceBody(object):
         self.vel_m_s = np.empty((3,), dtype=np.float64)
         self.gravitation_parameter_m3_s2 = get_gravity(name)
         self.radiation_w_m2 = radiation
+        self.gravity = gravity
 
         # Initialise the values to the start time.
         self.set_time(start_eph_time)
