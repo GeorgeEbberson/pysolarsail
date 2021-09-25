@@ -107,8 +107,7 @@ class TestSailProperties(TestCase):
         """Given an SRP and alpha and beta, test that the returned force vector has
         the correct dimensions and values."""
         force = sail.aqf(alpha, beta)
-        # 1E-17 is mm accurate at AU scale. Needed because of zero errors.
-        np.testing.assert_allclose(force, result, atol=1e-17)
+        self.assertArrayEqual(force, result)
         self.assertEqual(force.dtype, np.float64)
         self.assertEqual(force.shape, (3,))
 
