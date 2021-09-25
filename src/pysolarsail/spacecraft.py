@@ -209,7 +209,8 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-7
 
     while t < end_time:
 
-        real_time_step = find_optimal_stepsize(t, X, dt, model, craft, tol)
+        # real_time_step = find_optimal_stepsize(t, X, dt, model, craft, tol)
+        real_time_step = 60 * 60 * 24
 
         # Finally find the real k and find the real state.
         k_real = compute_k(t, X, real_time_step, model, craft)
@@ -252,7 +253,7 @@ if __name__ == "__main__":
         planets.append(sun)
         planets.append(mercury)
         planets.append(venus)
-        planets.append(earth)
+        # planets.append(earth)
         planets.append(mars)
         planets.append(jupiter)
         planets.append(saturn)
@@ -261,10 +262,10 @@ if __name__ == "__main__":
         planets.append(pluto)
 
         craft = SolarSailcraft(
-            earth.pos_m + np.array([8_000_000, 0, 0]),
+            earth.pos_m,
             earth.vel_m_s,
             # wright_sail(float(800 * 800)),
-            null_sail(),
+            wright_sail(800 * 800),
             r"C:\dev\solarsail\data\dachwald_mercury_alpha.csv",
             r"C:\dev\solarsail\data\dachwald_mercury_beta.csv",
             start_time,
