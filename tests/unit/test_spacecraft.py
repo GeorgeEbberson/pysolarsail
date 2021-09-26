@@ -43,7 +43,7 @@ def mock_spacecraft(aqf, pos, vel, mass=1, alpha=None, beta=None):
 
     add_prop_mock(spacecraft, "pos_m", side_effect=[np.array(x) for x in pos])
     add_prop_mock(spacecraft, "vel_m_s", side_effect=[np.array(x) for x in vel])
-    add_prop_mock(spacecraft, "mass_kg", return_value=mass)
+    add_prop_mock(spacecraft, "mass", return_value=mass)
     add_prop_mock(spacecraft, "alpha_rad", side_effect=[0] if alpha is None else alpha)
     add_prop_mock(spacecraft, "beta_rad", side_effect=[0] if beta is None else beta)
 
@@ -115,7 +115,12 @@ class TestRkf(TestCase):
             ([2, 3, 6], 2, [-x * (2 / 7) / 49 for x in [2, 3, 6]]),
         ]
     )
-    def test_solarsail_acceleration_gravity(self, sc_pos, grav_param, exp_accel):
+    def test_solarsail_acceleration_gravity_single_body(
+        self,
+        sc_pos,
+        grav_param,
+        exp_accel,
+    ):
         """Check that gravity is calculated properly."""
 
         sc = mock_spacecraft([None], [sc_pos], [None], mass=1)
@@ -132,7 +137,7 @@ class TestRkf(TestCase):
             ([1, 0, 0], [1, 0, 0], 1, 1, [SRP_0, 0, 0]),
         ]
     )
-    def test_solarsail_acceleration_srp(
+    def test_solarsail_acceleration_srp_single_body(
         self,
         aqf,
         sc_pos,
@@ -149,4 +154,15 @@ class TestRkf(TestCase):
         bd = mock_body([[0, 0, 0]], gravity=True, grav_param=0, radiation=radiation)
 
         accel = solarsail_acceleration(sc, [bd])
+        self.assertArrayEqual(accel, np.array(exp_accel))
+
+    def test_solarsail_acceleration_gravity_multiple_bodies(self):
+        """Test that gravity of several bodies is summed correctly."""
+        sc = mock_spacecraft([None], [None], [None])
+        bds = [
+            mock_body([None])
+            for x in range(10)
+        ]
+        accel = solarsail_acceleration(sc, bds)
+        exp_accel = [0, 0, 0]
         self.assertArrayEqual(accel, np.array(exp_accel))
