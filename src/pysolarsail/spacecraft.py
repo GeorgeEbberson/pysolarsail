@@ -1,6 +1,7 @@
 """
 The basic spacecraft class.
 """
+import decimal
 from datetime import datetime
 from typing import Iterable, Tuple
 
@@ -123,8 +124,9 @@ def solarsail_acceleration(
     bodies: Iterable[SpiceBody],
 ) -> np.ndarray:
     """Calculate the acceleration on a solar sailcraft given some planets and stars."""
-    accel = np.zeros((3,), dtype=np.float64)
-    for body in bodies:
+    accel = np.zeros((len(bodies), 3), dtype=np.float64)
+    decimal.getcontext().prec = 50
+    for idx, body in enumerate(bodies):
         if not body.gravity:
             continue
         craft_to_body_unit_vec, rad = unit_vector_and_mag(body.pos_m - craft.pos_m)
@@ -138,10 +140,9 @@ def solarsail_acceleration(
             if body.is_star
             else np.array([0, 0, 0], dtype=np.float64)
         )
-        accel += (1 / rad ** 2) * (
-            (body.gravitation_parameter_m3_s2 * craft_to_body_unit_vec) + sail_contrib
-        )
-    return accel
+        gravity_contrib = body.gravitation_parameter_m3_s2 * craft_to_body_unit_vec
+        accel[idx, :] = ((1 / rad ** 2) * (gravity_contrib + sail_contrib))
+    return np.sum(accel, axis=0)
 
 
 @njit

@@ -1,20 +1,15 @@
 """
 Tests for spacecraft.py.
 """
+from itertools import product
 from unittest.mock import MagicMock, PropertyMock
 
 import numpy as np
 import pytest
 from parameterized import parameterized
 
-from pysolarsail.spacecraft import (
-    solarsail_acceleration,
-    unit_vector_and_mag,
-)
-from pysolarsail.units import (
-    M_PER_AU,
-    SPEED_OF_LIGHT_M_S,
-)
+from pysolarsail.spacecraft import solarsail_acceleration, unit_vector_and_mag
+from pysolarsail.units import M_PER_AU, SPEED_OF_LIGHT_M_S
 
 from ..common_test_utils import TestCase
 
@@ -39,10 +34,10 @@ def mock_spacecraft(aqf, pos, vel, mass=1, alpha=None, beta=None):
 
     spacecraft = MagicMock()
     spacecraft.sail = MagicMock()
-    spacecraft.sail.aqf = MagicMock(side_effect=[np.array(x) for x in aqf])
+    spacecraft.sail.aqf = MagicMock(side_effect=[np.array(x, dtype=np.float64) for x in aqf])
 
-    add_prop_mock(spacecraft, "pos_m", side_effect=[np.array(x) for x in pos])
-    add_prop_mock(spacecraft, "vel_m_s", side_effect=[np.array(x) for x in vel])
+    add_prop_mock(spacecraft, "pos_m", side_effect=[np.array(x, dtype=np.float64) for x in pos])
+    add_prop_mock(spacecraft, "vel_m_s", side_effect=[np.array(x, dtype=np.float64) for x in vel])
     add_prop_mock(spacecraft, "mass", return_value=mass)
     add_prop_mock(spacecraft, "alpha_rad", side_effect=[0] if alpha is None else alpha)
     add_prop_mock(spacecraft, "beta_rad", side_effect=[0] if beta is None else beta)
@@ -60,7 +55,7 @@ def mock_body(pos, gravity=True, radiation=0, grav_param=1):
     add_prop_mock(body, "radiation_w_m2", return_value=radiation)
     add_prop_mock(body, "is_star", return_value=True if radiation != 0 else False)
     add_prop_mock(body, "gravitation_parameter_m3_s2", return_value=grav_param)
-    add_prop_mock(body, "pos_m", side_effect=[np.array(x) for x in pos])
+    add_prop_mock(body, "pos_m", side_effect=[np.array(x, dtype=np.float64) for x in pos])
 
     return body
 
@@ -158,11 +153,30 @@ class TestRkf(TestCase):
 
     def test_solarsail_acceleration_gravity_multiple_bodies(self):
         """Test that gravity of several bodies is summed correctly."""
-        sc = mock_spacecraft([None], [None], [None])
-        bds = [
-            mock_body([None])
-            for x in range(10)
-        ]
+        coords = list(product([-1, 1], [-1, 1], [-1, 1]))
+        sc = mock_spacecraft(
+            [None],
+            [[0, 0, 0] for _ in range(len(coords))],
+            [None],
+        )
+
+        bds = list(mock_body([list(x)]) for x in coords)
         accel = solarsail_acceleration(sc, bds)
         exp_accel = [0, 0, 0]
-        self.assertArrayEqual(accel, np.array(exp_accel))
+        self.assertArrayEqual(accel, np.array(exp_accel, dtype=np.float64))
+
+    def test_solarsail_acceleration_srp_multiple_bodies(self):
+        """Test that SRP of several bodies is summed correctly."""
+        coords = list(product([-1, 1], [-1, 1], [-1, 1]))
+        sc = mock_spacecraft(
+            [[1, 0, 0] for _ in range(len(coords))],
+            [[0, 0, 0] for _ in range(len(coords))],
+            [None],
+            alpha=[0 for _ in range(len(coords))],
+            beta=[0 for _ in range(len(coords))],
+        )
+
+        bds = list(mock_body([list(x)], radiation=1) for x in coords)
+        accel = solarsail_acceleration(sc, bds)
+        exp_accel = [0, 0, 0]
+        self.assertArrayEqual(accel, np.array(exp_accel, dtype=np.float64))
