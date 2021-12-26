@@ -148,7 +148,7 @@ def solarsail_acceleration(
 @njit
 def rkf_rhs(
     time: float,
-    state: Tuple[np.array],
+    state: np.array,
     bodies: Iterable[SpiceBody],
     craft: SolarSailcraft,
 ) -> np.ndarray:

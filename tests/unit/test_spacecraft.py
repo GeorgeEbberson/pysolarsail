@@ -2,13 +2,17 @@
 Tests for spacecraft.py.
 """
 from itertools import product
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import numpy as np
 import pytest
 from parameterized import parameterized
 
-from pysolarsail.spacecraft import solarsail_acceleration, unit_vector_and_mag
+from pysolarsail.spacecraft import (
+    rkf_rhs,
+    solarsail_acceleration,
+    unit_vector_and_mag,
+)
 from pysolarsail.units import M_PER_AU, SPEED_OF_LIGHT_M_S
 
 from ..common_test_utils import TestCase
@@ -195,3 +199,24 @@ class TestRkf(TestCase):
         accel = solarsail_acceleration(sc, bds)
         exp_accel = [0, 0, 0]
         self.assertArrayEqual(accel, np.array(exp_accel, dtype=np.float64))
+
+    def test_rkf_rhs(self):
+        """Check that rkf_rhs sets time then stacks the output correctly.
+
+        We care that the time is set for everything (i.e. we're working on the most
+        up-to-date state, and that the output has the input in the correct places.
+        """
+        craft = mock_spacecraft([-1, 0, 0], [0, 0, 0], [None], [0], [0])
+        bds = [mock_body([1, 0, 0])]
+        state = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float64)
+        time = float(123456)
+        with patch(
+            "pysolarsail.spacecraft.solarsail_acceleration",
+            return_value=np.array([7, 8, 9]),
+        ):
+            retval = rkf_rhs(time, state, bds, craft)
+        exp = np.array([[4, 5, 6], [7, 8, 9]], dtype=np.float64)
+        self.assertArrayEqual(exp, retval)
+        self.assertTrue(craft.set_time.called)
+        self.assertTrue(all([x.set_time.called] for x in bds))
+
