@@ -9,6 +9,7 @@ import pytest
 from parameterized import parameterized
 
 from pysolarsail.spacecraft import (
+    get_init_state,
     rkf_rhs,
     solarsail_acceleration,
     unit_vector_and_mag,
@@ -220,3 +221,8 @@ class TestRkf(TestCase):
         self.assertTrue(craft.set_time.called)
         self.assertTrue(all([x.set_time.called] for x in bds))
 
+    def test_get_init_state(self):
+        """Simple check that the starting state is correct."""
+        craft = mock_spacecraft([None], [[1, 2, 3]], [[4, 5, 6]])
+        retval = get_init_state(craft)
+        self.assertArrayEqual(retval, np.array([[1, 2, 3], [4, 5, 6]]))
