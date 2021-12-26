@@ -15,6 +15,7 @@ from ..common_test_utils import TestCase
 
 
 ONE_OVER_ROOT_3 = [np.sqrt(3) / 3, np.sqrt(3) / 3, np.sqrt(3) / 3]
+ROOT_2_ON_2 = np.sqrt(2) / 2
 
 SRP_0 = (M_PER_AU ** 2) / SPEED_OF_LIGHT_M_S
 
@@ -45,7 +46,7 @@ def mock_spacecraft(aqf, pos, vel, mass=1, alpha=None, beta=None):
     return spacecraft
 
 
-def mock_body(pos, gravity=True, radiation=0, grav_param=1):
+def mock_body(pos: list, gravity=True, radiation=0, grav_param=1):
     """Return a mock for a spicebody. Positional args should be iterables and the
     next element will be returned on each usage."""
 
@@ -166,17 +167,31 @@ class TestRkf(TestCase):
         self.assertArrayEqual(accel, np.array(exp_accel, dtype=np.float64))
 
     def test_solarsail_acceleration_srp_multiple_bodies(self):
-        """Test that SRP of several bodies is summed correctly."""
-        coords = list(product([-1, 1], [-1, 1], [-1, 1]))
+        """Test that SRP of several bodies is summed correctly.
+
+        This test is set up with one body directly in front of the craft, and two bodies
+        behind it at 45 degrees. Each of the two behind is half as radiative as the one
+        in front, meaning that they exert half as much force (because we mock aqf to
+        give a perfect sail).
+        """
+        # These must be unit vectors, or below code changed.
+        coords = [
+            ([1, 0, 0], [-1, 0, 0], 1),
+            ([-ROOT_2_ON_2, ROOT_2_ON_2, 0], [1, 0, 0], 0.5),
+            ([-ROOT_2_ON_2, -ROOT_2_ON_2, 0], [1, 0, 0], 0.5),
+        ]
+
         sc = mock_spacecraft(
-            [[1, 0, 0] for _ in range(len(coords))],
-            [[0, 0, 0] for _ in range(len(coords))],
+            [x for _, x, _ in coords],
+            [[0, 0, 0] for _ in coords],
             [None],
-            alpha=[0 for _ in range(len(coords))],
-            beta=[0 for _ in range(len(coords))],
+            alpha=[0 for _ in coords],
+            beta=[0 for _ in coords],
         )
 
-        bds = list(mock_body([list(x)], radiation=1) for x in coords)
+        bds = [
+            mock_body([pos], radiation=rad, grav_param=0) for pos, _, rad in coords
+        ]
         accel = solarsail_acceleration(sc, bds)
         exp_accel = [0, 0, 0]
         self.assertArrayEqual(accel, np.array(exp_accel, dtype=np.float64))
