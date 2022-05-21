@@ -1,6 +1,7 @@
 """
 Tests for spacecraft.py.
 """
+from collections import namedtuple
 from itertools import product
 from unittest.mock import MagicMock, PropertyMock, patch
 
@@ -9,15 +10,50 @@ import pytest
 from parameterized import parameterized
 
 from pysolarsail.spacecraft import (
-    get_init_state,
-    rkf_rhs,
+    compute_k,
+    rkf_step,
     solarsail_acceleration,
+    solve_rkf,
     unit_vector_and_mag,
 )
 from pysolarsail.units import M_PER_AU, SPEED_OF_LIGHT_M_S
 
 from ..common_test_utils import TestCase
 
+# Test cases for the RKF method.
+RkfTestCase = namedtuple(
+    "RkfTestCase",
+    ["x0", "y0", "dx", "y1", "k", "ykplus1", "zkplus1", "fn"],
+)
+
+
+def d_dx_x2_sinx(x, *_):
+    """The derivative of x^2 * sin(x) wrt x."""
+    return (2 * x * np.sin(x)) + (x * x * np.cos(x))
+
+
+# https://www.desmos.com/calculator/hzijoloamv
+RKF_TEST_CASE_1D = RkfTestCase(
+    x0=1,
+    y0=0.841470984808,
+    dx=1,
+    y1=3.6371897073,
+    k=[
+        2.22324427548,
+        2.86515273963,
+        3.06527266723,
+        2.33392213663,
+        1.97260236111,
+        3.15164366356,
+    ],
+    ykplus1=3.63630583173,
+    zkplus1=3.63660957909,
+    fn=d_dx_x2_sinx,
+)
+
+RKF_TEST_CASES = [
+    ("x^2 * sin(x)", RKF_TEST_CASE_1D),
+]
 
 ONE_OVER_ROOT_3 = [np.sqrt(3) / 3, np.sqrt(3) / 3, np.sqrt(3) / 3]
 ROOT_2_ON_2 = np.sqrt(2) / 2
@@ -187,8 +223,8 @@ class TestRkf(TestCase):
         ]
 
         sc = mock_spacecraft(
-            [x for _, x, _ in coords],
-            [[0, 0, 0] for _ in coords],
+            [[-(x/np.sqrt(2)) for x in coord] for coord in coords],
+            [[0, 0, 0] for _ in range(len(coords))],
             [None],
             alpha=[0 for _ in coords],
             beta=[0 for _ in coords],
@@ -199,30 +235,57 @@ class TestRkf(TestCase):
         ]
         accel = solarsail_acceleration(sc, bds)
         exp_accel = [0, 0, 0]
-        self.assertArrayEqual(accel, np.array(exp_accel, dtype=np.float64))
+        self.assertArrayAlmostEqual(
+            accel,
+            np.array(exp_accel, dtype=np.float64),
+            atol=0.01,
+        )
 
-    def test_rkf_rhs(self):
-        """Check that rkf_rhs sets time then stacks the output correctly.
+    @parameterized.expand(RKF_TEST_CASES)
+    def test_compute_k(self, _, case):
+        """All values of X should be correct for a given k value.
 
-        We care that the time is set for everything (i.e. we're working on the most
-        up-to-date state, and that the output has the input in the correct places.
+        Test function is x^2 * sin(x) so d/dx = 2x*sin(x) + cos(x)*x^2.
         """
-        craft = mock_spacecraft([-1, 0, 0], [0, 0, 0], [None], [0], [0])
-        bds = [mock_body([1, 0, 0])]
-        state = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float64)
-        time = float(123456)
-        with patch(
-            "pysolarsail.spacecraft.solarsail_acceleration",
-            return_value=np.array([7, 8, 9]),
-        ):
-            retval = rkf_rhs(time, state, bds, craft)
-        exp = np.array([[4, 5, 6], [7, 8, 9]], dtype=np.float64)
-        self.assertArrayEqual(exp, retval)
-        self.assertTrue(craft.set_time.called)
-        self.assertTrue(all([x.set_time.called] for x in bds))
 
-    def test_get_init_state(self):
-        """Simple check that the starting state is correct."""
-        craft = mock_spacecraft([None], [[1, 2, 3]], [[4, 5, 6]])
-        retval = get_init_state(craft)
-        self.assertArrayEqual(retval, np.array([[1, 2, 3], [4, 5, 6]]))
+        with patch("pysolarsail.spacecraft.rkf_rhs", wraps=case.fn) as fn:
+            k = compute_k(case.x0, case.y0, case.dx, None, None)
+
+        for idx, kx in enumerate(case.k):
+            self.assertArrayAlmostEqual(
+                kx,
+                k[idx, :, :],
+                err_msg=f"Mismatch on k[{idx}, :, :]",
+            )
+
+    @parameterized.expand(RKF_TEST_CASES)
+    def test_rkf_step(self, _, case):
+        """y and z should be correct."""
+
+        with patch("pysolarsail.spacecraft.rkf_rhs", wraps=case.fn) as fn:
+            y_kplus1, z_kplus1 = rkf_step(case.dx, case.x0, case.y0, None, None)
+
+        self.assertArrayAlmostEqual(y_kplus1, case.ykplus1)
+        self.assertArrayAlmostEqual(z_kplus1, case.zkplus1)
+
+    @parameterized.expand(RKF_TEST_CASES)
+    def test_solve_rkf(self, _, case):
+        """RKF should be correct."""
+
+        with patch(
+            "pysolarsail.spacecraft.get_init_state"
+        ) as init, patch(
+            "pysolarsail.spacecraft.rkf_rhs", wraps=case.fn
+        ) as rhs_fn:
+            init.return_value = np.ones((2, 3)) * case.x0
+            results = solve_rkf(
+                None,
+                case.x0,
+                2.1,
+                [mock_body([[0, 0, 0], [0, 0, 0], [0, 0, 0]])],
+                init_time_step=case.dx,
+            )
+
+        print(results)
+        print(results[:, 16] - results[:, 10])
+        self.assertEqual(results, 0)

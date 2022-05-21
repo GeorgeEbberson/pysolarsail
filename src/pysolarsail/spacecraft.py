@@ -77,6 +77,7 @@ class SolarSailcraft(object):
         alpha_file: str,
         beta_file: str,
         start_time: float,
+        mass: float = 1000,
     ) -> None:
         """Create a new class instance."""
         self.pos_m = pos
@@ -84,7 +85,7 @@ class SolarSailcraft(object):
         self.sail = sail
         self.alpha_rad = np.nan
         self.beta_rad = np.nan
-        self.mass = 1000
+        self.mass = mass
 
         self._alpha_steering_angles = _load_csv(alpha_file, start_time)
         self._beta_steering_angles = _load_csv(beta_file, start_time)
@@ -141,7 +142,7 @@ def solarsail_acceleration(
             else np.array([0, 0, 0], dtype=np.float64)
         )
         gravity_contrib = body.gravitation_parameter_m3_s2 * craft_to_body_unit_vec
-        accel[idx, :] = ((1 / rad ** 2) * (gravity_contrib + sail_contrib))
+        accel[idx, :] = ((1 / (rad ** 2)) * (gravity_contrib + sail_contrib))
     return np.sum(accel, axis=0)
 
 
@@ -186,6 +187,14 @@ def compute_k(time, X, timestep, model, craft):
     return k
 
 
+def rkf_step(timestep, time, X, model, craft):
+    """Do one algorithm step."""
+    k = compute_k(time, X, timestep, model, craft)
+    y_kplus1 = X + np.sum(RKF_YPLUS_COEFFS * k, axis=0)
+    z_kplus1 = X + np.sum(RKF_ZPLUS_COEFFS * k, axis=0)
+    return y_kplus1, z_kplus1
+
+
 @njit
 def find_optimal_stepsize(t, X, dt, model, craft, tol):
     """Return the optimal stepsize."""
@@ -199,84 +208,125 @@ def find_optimal_stepsize(t, X, dt, model, craft, tol):
 
 
 @njit
-def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-7):
+def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-5):
     """Run the RKF algorithm."""
     dt = init_time_step
     X = get_init_state(craft)
     t = start_time
 
-    n_cols = 8 + 3 * len(model)
-    results_list = [[0] * n_cols]
+    # p is the order of RK to use. This is RKF45, therefore RK4.
+    p = 4
+    # Beta is the fraction to adjust by when changing timestep.
+    beta = 0.9
+
+    results_list = []
 
     while t < end_time:
+        step_accepted = False
+        num_steps = 0
+        while not step_accepted:
+            num_steps += 1
+            ykplus1, zkplus1 = rkf_step(dt, t, X, model, craft)
+            epsilon = np.max(np.abs(zkplus1 - ykplus1) / ((2 ** p) - 1))
+            if epsilon == 0:
+                step_accepted = True
+                dt_new = dt
+            elif np.all(epsilon < tol):
+                # If we were more accurate than needed, lengthen the timestep.
+                step_accepted = True
+                dt_new = beta * dt * ((tol / epsilon) ** (1 / p))
+            else:
+                # If we weren't accurate enough, shorten the timestep.
+                dt_new = beta * dt * ((tol / epsilon) ** (1 / (p + 1)))
+                dt = dt_new
 
-        # real_time_step = find_optimal_stepsize(t, X, dt, model, craft, tol)
-        real_time_step = 60 * 60 * 24
-
-        # Finally find the real k and find the real state.
-        k_real = compute_k(t, X, real_time_step, model, craft)
-        X += np.sum(RKF_YPLUS_COEFFS * k_real, axis=0)
-
-        # Write the output data.
+        X = ykplus1
+        t += dt
         results = [
             t,
-            real_time_step,
+            dt,
             X[0, 0], X[0, 1], X[0, 2],
-            X[1, 0], X[1, 1], X[1, 2]
+            X[1, 0], X[1, 1], X[1, 2],
+            epsilon,
+            ykplus1[0, 0], ykplus1[0, 1], ykplus1[0, 2],
+            ykplus1[1, 0], ykplus1[1, 1], ykplus1[1, 2],
+            zkplus1[0, 0], zkplus1[0, 1], zkplus1[0, 2],
+            zkplus1[1, 0], zkplus1[1, 1], zkplus1[1, 2],
+            num_steps,
         ]
         positions = sum([body.pos_m.tolist() for body in model], [])
         results_list.append(results + positions)
+        dt = dt_new
 
-        # Increment time for next timestep.
-        t += real_time_step
-        dt = real_time_step
+        # # real_time_step = find_optimal_stepsize(t, X, dt, model, craft, tol)
+        # real_time_step = 60 * 60 * 24
+        #
+        # # Finally find the real k and find the real state.
+        # k_real = compute_k(t, X, real_time_step, model, craft)
+        # X += np.sum(RKF_YPLUS_COEFFS * k_real, axis=0)
+        #
+        # # Write the output data.
+        # results = [
+        #     t,
+        #     real_time_step,
+        #     X[0, 0], X[0, 1], X[0, 2],
+        #     X[1, 0], X[1, 1], X[1, 2]
+        # ]
+        # positions = sum([body.pos_m.tolist() for body in model], [])
+        # results_list.append(results + positions)
+        #
+        # # Increment time for next timestep.
+        # t += real_time_step
+        # dt = real_time_step
 
     return np.array(results_list)
 
 
 if __name__ == "__main__":
-    with SpiceKernel(r"C:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
+    with SpiceKernel(r"D:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
         start_time = get_eph_time(np.datetime64(datetime(2003, 1, 15, 12)))
         end_time = get_eph_time(np.datetime64(datetime(2004, 8, 11, 12)))
 
-        sun = SpiceBody("Sun", start_time, end_time, radiation=1368)
-        mercury = SpiceBody("Mercury", start_time, end_time)
-        venus = SpiceBody("Venus", start_time, end_time)
-        earth = SpiceBody("Earth", start_time, end_time)
-        mars = SpiceBody("Mars", start_time, end_time)
-        jupiter = SpiceBody("Jupiter", start_time, end_time)
-        saturn = SpiceBody("Saturn", start_time, end_time)
-        uranus = SpiceBody("Uranus", start_time, end_time)
-        neptune = SpiceBody("Neptune", start_time, end_time)
-        pluto = SpiceBody("Pluto", start_time, end_time)
+        sun = SpiceBody("Sun", start_time, end_time, radiation=0)
+        # mercury = SpiceBody("Mercury", start_time, end_time, gravity=False)
+        # venus = SpiceBody("Venus", start_time, end_time, gravity=False)
+        earth = SpiceBody("Earth", start_time, end_time, gravity=False)
+        # mars = SpiceBody("Mars", start_time, end_time, gravity=False)
+        # jupiter = SpiceBody("Jupiter", start_time, end_time, gravity=False)
+        # saturn = SpiceBody("Saturn", start_time, end_time, gravity=False)
+        # uranus = SpiceBody("Uranus", start_time, end_time, gravity=False)
+        # neptune = SpiceBody("Neptune", start_time, end_time, gravity=False)
+        # pluto = SpiceBody("Pluto", start_time, end_time, gravity=False)
 
         planets = List()  # numba typed list avoids reflected list problems.
         planets.append(sun)
-        planets.append(mercury)
-        planets.append(venus)
-        # planets.append(earth)
-        planets.append(mars)
-        planets.append(jupiter)
-        planets.append(saturn)
-        planets.append(uranus)
-        planets.append(neptune)
-        planets.append(pluto)
+        # planets.append(mercury)
+        # planets.append(venus)
+        # #planets.append(earth)
+        # planets.append(mars)
+        # planets.append(jupiter)
+        # planets.append(saturn)
+        # planets.append(uranus)
+        # planets.append(neptune)
+        # planets.append(pluto)
 
         craft = SolarSailcraft(
             earth.pos_m,
             earth.vel_m_s,
             # wright_sail(float(800 * 800)),
-            wright_sail(800 * 800),
-            r"C:\dev\solarsail\data\dachwald_mercury_alpha.csv",
-            r"C:\dev\solarsail\data\dachwald_mercury_beta.csv",
+            #wright_sail(800 * 800),
+            null_sail(),
+            r"D:\dev\solarsail\data\dachwald_mercury_alpha.csv",
+            r"D:\dev\solarsail\data\dachwald_mercury_beta.csv",
             start_time,
+            mass=5.972E24,
         )
 
         a = solve_rkf(craft, start_time, end_time, planets)
         print(a)
         fig = plt.figure()
         plt.plot(a[:, 2] / M_PER_AU, a[:, 3] / M_PER_AU)
-        plt.plot(a[:, 11] / M_PER_AU, a[:, 12] / M_PER_AU)
+        #plt.plot(a[:, 11] / M_PER_AU, a[:, 12] / M_PER_AU)
         ax = plt.gca()
         ax.spines['top'].set_color('none')
         ax.spines['left'].set_position('zero')
@@ -285,7 +335,7 @@ if __name__ == "__main__":
         ax.axis("equal")
 
         fig2 = plt.figure()
-        plt.plot(a[:, 1], label="real_time_step")
+        plt.plot(a[:, 1], label="timestep")
         # plt.plot(a[:, 0], a[:, 2], label="X[0,0]")
         # plt.plot(a[:, 0], a[:, 3], label="X[0,1]")
         # plt.plot(a[:, 0], a[:, 4], label="X[0,2]")
