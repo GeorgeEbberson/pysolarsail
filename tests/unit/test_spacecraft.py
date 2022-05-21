@@ -216,22 +216,23 @@ class TestRkf(TestCase):
         give a perfect sail).
         """
         # These must be unit vectors, or below code changed.
-        coords = [
+        bodies = [
+            # pos, aqf, radiation
             ([1, 0, 0], [-1, 0, 0], 1),
             ([-ROOT_2_ON_2, ROOT_2_ON_2, 0], [1, 0, 0], 0.5),
             ([-ROOT_2_ON_2, -ROOT_2_ON_2, 0], [1, 0, 0], 0.5),
         ]
 
         sc = mock_spacecraft(
-            [[-(x/np.sqrt(2)) for x in coord] for coord in coords],
-            [[0, 0, 0] for _ in range(len(coords))],
+            [body[1] for body in bodies],
+            [[0, 0, 0] for _ in range(len(bodies))],
             [None],
-            alpha=[0 for _ in coords],
-            beta=[0 for _ in coords],
+            alpha=[0 for _ in bodies],
+            beta=[0 for _ in bodies],
         )
 
         bds = [
-            mock_body([pos], radiation=rad, grav_param=0) for pos, _, rad in coords
+            mock_body([pos], radiation=rad, grav_param=0) for pos, _, rad in bodies
         ]
         accel = solarsail_acceleration(sc, bds)
         exp_accel = [0, 0, 0]
