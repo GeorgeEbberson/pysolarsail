@@ -5,6 +5,8 @@ import numpy as np
 from numba import float64, njit
 from numba.experimental import jitclass
 
+from pysolarsail.units import SOLAR_RADIATION_PRESSURE_P0
+
 SAIL_PROPERTIES_SPEC = [
     ("area_m2", float64),
     ("G", float64),
@@ -84,6 +86,10 @@ class SailProperties(object):
             )
         )
 
+    def mass_for_char_accel(self, char_accel: float) -> float:
+        """Calculate the mass for this sail to give a characteristic acceleration."""
+        return SOLAR_RADIATION_PRESSURE_P0 * (self.G + self.K) * self.area_m2 / char_accel
+
 
 @njit
 def wright_sail(area: float) -> SailProperties:
@@ -94,7 +100,7 @@ def wright_sail(area: float) -> SailProperties:
 @njit
 def ideal_sail(area: float) -> SailProperties:
     """Returns a sail with theoretical ideal optical propeties, and given area."""
-    return SailProperties(area, 1, 1, 0, 1, 1, 1)
+    return SailProperties(area, 1, 1, 0, 0, 1, 1)
 
 
 @njit

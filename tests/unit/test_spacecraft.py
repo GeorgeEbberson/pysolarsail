@@ -10,6 +10,7 @@ import pytest
 from parameterized import parameterized
 
 from pysolarsail.spacecraft import (
+    SolarSailcraft,
     compute_k,
     rkf_step,
     solarsail_acceleration,
@@ -128,8 +129,8 @@ class TestRkf(TestCase):
 
     def test_solarsail_acceleration_no_bodies(self):
         """Check that accel is zero for no bodies."""
-        sc = mock_spacecraft([None], [None], [None])
-        accel = solarsail_acceleration(sc, [])
+        sc = mock_spacecraft(aqf=[None], pos=[None], vel=[None])
+        accel = solarsail_acceleration(sc, [], np.zeros((2, 3)))
         self.assertArrayEqual(accel, np.array([0, 0, 0]))
 
         # Use this as the metric for not calculating anything (i.e. not zero by chance).
@@ -137,9 +138,9 @@ class TestRkf(TestCase):
 
     def test_solarsail_acceleration_no_gravity_short_circuit(self):
         """Check that gravity turned off gives zero accel."""
-        sc = mock_spacecraft([None], [None], [None])
+        sc = mock_spacecraft(aqf=[None], pos=[None], vel=[None])
         bd = mock_body([None], gravity=False)
-        accel = solarsail_acceleration(sc, [bd])
+        accel = solarsail_acceleration(sc, [bd], np.zeros((2, 3)))
         self.assertArrayEqual(accel, np.array([0, 0, 0]))
 
         # Check that the zero is not by chance.
@@ -163,7 +164,7 @@ class TestRkf(TestCase):
         sc = mock_spacecraft([None], [sc_pos], [None], mass=1)
         bd = mock_body([[0, 0, 0]], gravity=True, grav_param=grav_param)
 
-        accel = solarsail_acceleration(sc, [bd])
+        accel = solarsail_acceleration(sc, [bd], np.array([sc_pos, [0, 0, 0]]))
         self.assertArrayEqual(accel, np.array(exp_accel))
 
         # Check that sail accel code was never called.
@@ -184,26 +185,26 @@ class TestRkf(TestCase):
     ):
         """Check that force on the sail itself is calculated properly."""
 
-        sc = mock_spacecraft([aqf], [sc_pos], [None], mass=mass)
+        sc = mock_spacecraft(aqf=[aqf], pos=[sc_pos], vel=[None], mass=mass)
 
         # Gravity must be True because otherwise the body is skipped. (Stars are
         # expected to always have gravity on).
         bd = mock_body([[0, 0, 0]], gravity=True, grav_param=0, radiation=radiation)
 
-        accel = solarsail_acceleration(sc, [bd])
+        accel = solarsail_acceleration(sc, [bd], np.array([sc_pos, [0, 0, 0]]))
         self.assertArrayEqual(accel, np.array(exp_accel))
 
     def test_solarsail_acceleration_gravity_multiple_bodies(self):
         """Test that gravity of several bodies is summed correctly."""
         coords = list(product([-1, 1], [-1, 1], [-1, 1]))
         sc = mock_spacecraft(
-            [None],
-            [[0, 0, 0] for _ in range(len(coords))],
-            [None],
+            aqf=[None],
+            pos=[[0, 0, 0] for _ in range(len(coords))],
+            vel=[None],
         )
 
         bds = list(mock_body([list(x)]) for x in coords)
-        accel = solarsail_acceleration(sc, bds)
+        accel = solarsail_acceleration(sc, bds, np.zeros((2, 3)))
         exp_accel = [0, 0, 0]
         self.assertArrayEqual(accel, np.array(exp_accel, dtype=np.float64))
 
@@ -234,7 +235,7 @@ class TestRkf(TestCase):
         bds = [
             mock_body([pos], radiation=rad, grav_param=0) for pos, _, rad in bodies
         ]
-        accel = solarsail_acceleration(sc, bds)
+        accel = solarsail_acceleration(sc, bds, np.zeros((2, 3)))
         exp_accel = [0, 0, 0]
         self.assertArrayAlmostEqual(
             accel,

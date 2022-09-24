@@ -1,19 +1,41 @@
 """
 Common test things.
 """
+import logging
+import os
 import unittest
 
 import numpy as np
 
+LOGGER = logging.getLogger(__name__)
 
 # 1-in-a-billion accurate. Small atol to allow for zero comparisons.
 # TODO change these to justified values.
 FLOAT_EQUAL_PRECISION_RTOL = 1e-9
 FLOAT_EQUAL_PRECISION_ATOL = 1e-16
 
+# Strings to be considered true and false respectively. Should be all lowercase.
+TRUE_STRINGS = ("true", "y", "1")
+FALSE_STRINGS = ("false", "n", "0")
+
+
+def load_env_variable_true_false(name):
+    """Loads an environment variable and tries to cast it to true/false."""
+    env_var = os.getenv(name, "false")
+    if env_var.lower() in TRUE_STRINGS:
+        res = True
+    elif env_var.lower() in FALSE_STRINGS:
+        res = False
+    else:
+        res = False
+    LOGGER.info(f"{name} is {res}")
+    return res
+
 
 class TestCase(unittest.TestCase):
     """Testcase overrides and extra convenience methods."""
+
+    SHOULD_PLOT = load_env_variable_true_false("PYSOLARSAIL_DO_PLOT")
 
     @staticmethod
     def assertArrayEqual(

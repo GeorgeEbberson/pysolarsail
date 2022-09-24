@@ -2,19 +2,15 @@
 The basic spacecraft class.
 """
 import decimal
-from datetime import datetime
-from typing import Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 from numba import float64, njit, objmode
 from numba.experimental import jitclass
-from numba.typed import List
 
 from pysolarsail.bodies import SpiceBody
 from pysolarsail.numba_utils import class_spec
-from pysolarsail.sail_properties import SailProperties, null_sail, wright_sail
-from pysolarsail.spice import SpiceKernel, get_eph_time
+from pysolarsail.sail_properties import SailProperties
 from pysolarsail.units import M_PER_AU, SECS_PER_DAY, SPEED_OF_LIGHT_M_S
 
 # These coefficients are taken from
@@ -60,6 +56,7 @@ SOLAR_SAILCRAFT_SPEC = [
     ("alpha_rad", float64),
     ("beta_rad", float64),
     ("mass", float64),
+    ("char_accel", float64),
     ("_alpha_steering_angles", float64[:, ::1]),
     ("_beta_steering_angles", float64[:, ::1]),
 ]
@@ -77,7 +74,8 @@ class SolarSailcraft(object):
         alpha_file: str,
         beta_file: str,
         start_time: float,
-        mass: float = 1000,
+        mass: Optional[float] = None,
+        char_accel: Optional[float] = None,
     ) -> None:
         """Create a new class instance."""
         self.pos_m = pos
@@ -85,7 +83,11 @@ class SolarSailcraft(object):
         self.sail = sail
         self.alpha_rad = np.nan
         self.beta_rad = np.nan
-        self.mass = mass
+
+        self.mass = np.nan
+        self.char_accel = np.nan
+        self.set_mass_and_char_accel(mass, char_accel)
+
 
         self._alpha_steering_angles = _load_csv(alpha_file, start_time)
         self._beta_steering_angles = _load_csv(beta_file, start_time)
@@ -101,6 +103,21 @@ class SolarSailcraft(object):
             self._beta_steering_angles[:, 0],
             self._beta_steering_angles[:, 1],
         )
+
+    def set_mass_and_char_accel(self, mass: Optional[float], char_accel: Optional[float]):
+        """Calculate and set the mass and characteristic acceleration of the sail."""
+        if (mass is None and char_accel is None) or (mass is not None and char_accel is not None):
+            raise ValueError("Must give exactly one of mass and char accel.")
+
+        if char_accel is not None:
+            # Need to calculate mass to achieve correct accel.
+            self.char_accel = char_accel
+            self.mass = self.sail.mass_for_char_accel(char_accel)
+
+        # Should be impossible.
+        assert (self.char_accel != np.nan)
+        assert (self.mass != np.nan)
+
 
 
 @njit
@@ -123,6 +140,7 @@ def unit_vector_and_mag(vec: np.ndarray) -> Tuple[np.ndarray, float]:
 def solarsail_acceleration(
     craft: SolarSailcraft,
     bodies: Iterable[SpiceBody],
+    state: np.ndarray,
 ) -> np.ndarray:
     """Calculate the acceleration on a solar sailcraft given some planets and stars."""
     accel = np.zeros((len(bodies), 3), dtype=np.float64)
@@ -130,7 +148,7 @@ def solarsail_acceleration(
     for idx, body in enumerate(bodies):
         if not body.gravity:
             continue
-        craft_to_body_unit_vec, rad = unit_vector_and_mag(body.pos_m - craft.pos_m)
+        craft_to_body_unit_vec, rad = unit_vector_and_mag(body.pos_m - state[0, :])
         sail_contrib = (
             (
                 body.radiation_w_m2
@@ -163,7 +181,7 @@ def rkf_rhs(
         obj.set_time(time)
     craft.set_time(time)
 
-    return np.vstack((state[1], solarsail_acceleration(craft, bodies)))
+    return np.vstack((state[1, :], solarsail_acceleration(craft, bodies, state)))
 
 
 @njit
@@ -255,93 +273,8 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-5
             num_steps,
         ]
         positions = sum([body.pos_m.tolist() for body in model], [])
-        results_list.append(results + positions)
+        vels = sum([body.vel_m_s.tolist() for body in model], [])
+        results_list.append(results + positions + vels)
         dt = dt_new
 
-        # # real_time_step = find_optimal_stepsize(t, X, dt, model, craft, tol)
-        # real_time_step = 60 * 60 * 24
-        #
-        # # Finally find the real k and find the real state.
-        # k_real = compute_k(t, X, real_time_step, model, craft)
-        # X += np.sum(RKF_YPLUS_COEFFS * k_real, axis=0)
-        #
-        # # Write the output data.
-        # results = [
-        #     t,
-        #     real_time_step,
-        #     X[0, 0], X[0, 1], X[0, 2],
-        #     X[1, 0], X[1, 1], X[1, 2]
-        # ]
-        # positions = sum([body.pos_m.tolist() for body in model], [])
-        # results_list.append(results + positions)
-        #
-        # # Increment time for next timestep.
-        # t += real_time_step
-        # dt = real_time_step
-
     return np.array(results_list)
-
-
-if __name__ == "__main__":
-    with SpiceKernel(r"D:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
-        start_time = get_eph_time(np.datetime64(datetime(2003, 1, 15, 12)))
-        end_time = get_eph_time(np.datetime64(datetime(2004, 8, 11, 12)))
-
-        sun = SpiceBody("Sun", start_time, end_time, radiation=0)
-        # mercury = SpiceBody("Mercury", start_time, end_time, gravity=False)
-        # venus = SpiceBody("Venus", start_time, end_time, gravity=False)
-        earth = SpiceBody("Earth", start_time, end_time, gravity=False)
-        # mars = SpiceBody("Mars", start_time, end_time, gravity=False)
-        # jupiter = SpiceBody("Jupiter", start_time, end_time, gravity=False)
-        # saturn = SpiceBody("Saturn", start_time, end_time, gravity=False)
-        # uranus = SpiceBody("Uranus", start_time, end_time, gravity=False)
-        # neptune = SpiceBody("Neptune", start_time, end_time, gravity=False)
-        # pluto = SpiceBody("Pluto", start_time, end_time, gravity=False)
-
-        planets = List()  # numba typed list avoids reflected list problems.
-        planets.append(sun)
-        # planets.append(mercury)
-        # planets.append(venus)
-        # #planets.append(earth)
-        # planets.append(mars)
-        # planets.append(jupiter)
-        # planets.append(saturn)
-        # planets.append(uranus)
-        # planets.append(neptune)
-        # planets.append(pluto)
-
-        craft = SolarSailcraft(
-            earth.pos_m,
-            earth.vel_m_s,
-            # wright_sail(float(800 * 800)),
-            #wright_sail(800 * 800),
-            null_sail(),
-            r"D:\dev\solarsail\data\dachwald_mercury_alpha.csv",
-            r"D:\dev\solarsail\data\dachwald_mercury_beta.csv",
-            start_time,
-            mass=5.972E24,
-        )
-
-        a = solve_rkf(craft, start_time, end_time, planets)
-        print(a)
-        fig = plt.figure()
-        plt.plot(a[:, 2] / M_PER_AU, a[:, 3] / M_PER_AU)
-        #plt.plot(a[:, 11] / M_PER_AU, a[:, 12] / M_PER_AU)
-        ax = plt.gca()
-        ax.spines['top'].set_color('none')
-        ax.spines['left'].set_position('zero')
-        ax.spines['right'].set_color('none')
-        ax.spines['bottom'].set_position('zero')
-        ax.axis("equal")
-
-        fig2 = plt.figure()
-        plt.plot(a[:, 1], label="timestep")
-        # plt.plot(a[:, 0], a[:, 2], label="X[0,0]")
-        # plt.plot(a[:, 0], a[:, 3], label="X[0,1]")
-        # plt.plot(a[:, 0], a[:, 4], label="X[0,2]")
-        # plt.plot(a[:, 0], a[:, 5], label="X[1,0]")
-        # plt.plot(a[:, 0], a[:, 6], label="X[1,1]")
-        # plt.plot(a[:, 0], a[:, 7], label="X[1,2]")
-        plt.legend()
-
-        plt.show()
