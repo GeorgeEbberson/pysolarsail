@@ -1,19 +1,18 @@
 """
 Stores and handles sail optical properties and generates the sail properties object.
 """
-from collections import OrderedDict
-
 import numpy as np
-from numba import float64, jit
+from numba import float64, njit
 from numba.experimental import jitclass
 
-SAIL_PROPERTIES_SPEC = OrderedDict(
-    [
-        ("G", float64),
-        ("H", float64),
-        ("K", float64),
-    ]
-)
+from pysolarsail.units import SOLAR_RADIATION_PRESSURE_P0
+
+SAIL_PROPERTIES_SPEC = [
+    ("area_m2", float64),
+    ("G", float64),
+    ("H", float64),
+    ("K", float64),
+]
 
 
 @jitclass(SAIL_PROPERTIES_SPEC)
@@ -67,17 +66,16 @@ class SailProperties(object):
             (self.H * np.sin(beta)) / (self.G * np.cos(beta) + self.K)
         )
 
-    def calculate_force(
-        self,
-        solar_radiation_pressure: float,
-        alpha: float,
-        beta: float,
-    ) -> np.ndarray:
-        """Calculate the force on a solar sail in the e_r frame."""
+    def aqf(self, alpha: float, beta: float) -> np.ndarray:
+        """Calculate area * Q(beta) * f as a convenience."""
         delta = self.delta(beta)
+
+        # This assumes that alpha = gamma, or that the spacecraft clock angle is
+        # equal to the force clock angle. This is probably untrue but the assumption
+        # is used sometimes in literature so it's acceptable for now.
+        # TODO Test whether this assumption is true by deriving it.
         return (
-            solar_radiation_pressure
-            * self.area_m2
+            self.area_m2
             * self.Q(beta)
             * np.array(
                 [
@@ -88,14 +86,24 @@ class SailProperties(object):
             )
         )
 
+    def mass_for_char_accel(self, char_accel: float) -> float:
+        """Calculate the mass for this sail to give a characteristic acceleration."""
+        return SOLAR_RADIATION_PRESSURE_P0 * (self.G + self.K) * self.area_m2 / char_accel
 
-@jit
+
+@njit
 def wright_sail(area: float) -> SailProperties:
     """Returns a sail with optical properties as given by Wright, and given area."""
     return SailProperties(area, 0.88, 0.94, 0.79, 0.55, 0.05, 0.55)
 
 
-@jit
+@njit
 def ideal_sail(area: float) -> SailProperties:
     """Returns a sail with theoretical ideal optical propeties, and given area."""
-    return SailProperties(area, 1, 1, 0, 1, 1, 1)
+    return SailProperties(area, 1, 1, 0, 0, 1, 1)
+
+
+@njit
+def null_sail() -> SailProperties:
+    """Return a sail that does nothing."""
+    return ideal_sail(0)

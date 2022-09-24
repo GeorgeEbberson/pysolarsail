@@ -1,19 +1,34 @@
 """
 Tests for sail_properties.py.
 """
-import unittest
+from collections import namedtuple
 
 import numpy as np
+import pytest
 from parameterized import parameterized
 
 from pysolarsail.sail_properties import SailProperties, ideal_sail, wright_sail
-from pysolarsail.units import SOLAR_IRRADIANCE_W_M2, SPEED_OF_LIGHT_M_S
+
+from ..common_test_utils import TestCase
+
+SailPropertiesCase = namedtuple(
+    "SailPropertiesCase",
+    ["alpha", "beta", "Q", "delta", "aqf"],
+)
 
 WRIGHT_SAIL = wright_sail(1)
 IDEAL_SAIL = ideal_sail(1)
+WRIGHT_CASE1 = SailPropertiesCase(
+    alpha=0.1,
+    beta=1.1,
+    Q=0.377525508232,
+    delta=0.913896143008,
+    aqf=[0.230541644495, 0.297464744393, 0.0298460275856],
+)
 
 
-class TestSailProperties(unittest.TestCase):
+@pytest.mark.unit
+class TestSailProperties(TestCase):
     """Tests for the sail properties routines."""
 
     @parameterized.expand(
@@ -57,7 +72,7 @@ class TestSailProperties(unittest.TestCase):
         [
             (WRIGHT_SAIL, 0, WRIGHT_SAIL.G + WRIGHT_SAIL.K),
             (WRIGHT_SAIL, np.pi / 2, 0),
-            (WRIGHT_SAIL, 1.1, 0.377525508232),
+            (WRIGHT_SAIL, WRIGHT_CASE1.beta, WRIGHT_CASE1.Q),
         ]
     )
     def test_Q(self, sail, beta, q):
@@ -71,7 +86,7 @@ class TestSailProperties(unittest.TestCase):
         [
             (WRIGHT_SAIL, 0, 0),
             (WRIGHT_SAIL, np.pi / 2, 3.07866658201),
-            (WRIGHT_SAIL, 1.1, 0.913896143008),
+            (WRIGHT_SAIL, WRIGHT_CASE1.beta, WRIGHT_CASE1.delta),
         ]
     )
     def test_delta(self, sail, beta, delta):
@@ -82,39 +97,28 @@ class TestSailProperties(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (IDEAL_SAIL, 1, 0, 0, [2, 0, 0]),
-            (IDEAL_SAIL, 1, 0, np.pi / 2, [0, 0, 0]),
+            (IDEAL_SAIL, 0, 0, [2, 0, 0]),
+            (IDEAL_SAIL, 0, np.pi / 2, [0, 0, 0]),
             # Invented example, checked by hand calculation.
-            (WRIGHT_SAIL, 25, 0.1, 1.1, [5.76354111238, 7.43661860982, 0.746150689641]),
-            # Example for sail at 1AU.
-            (
-                IDEAL_SAIL,
-                SOLAR_IRRADIANCE_W_M2 / SPEED_OF_LIGHT_M_S,
-                0,
-                0,
-                [2 * SOLAR_IRRADIANCE_W_M2 / SPEED_OF_LIGHT_M_S, 0, 0],
-            ),
+            (WRIGHT_SAIL, WRIGHT_CASE1.alpha, WRIGHT_CASE1.beta, WRIGHT_CASE1.aqf),
         ]
     )
-    def test_calculate_force(self, sail, srp, alpha, beta, result):
+    def test_aqf(self, sail, alpha, beta, result):
         """Given an SRP and alpha and beta, test that the returned force vector has
         the correct dimensions and values."""
-        force = sail.calculate_force(srp, alpha, beta)
-        # 1E-17 is mm accurate at AU scale. Needed because of zero errors.
-        np.testing.assert_allclose(force, result, atol=1e-17)
+        force = sail.aqf(alpha, beta)
+        self.assertArrayEqual(force, result)
         self.assertEqual(force.dtype, np.float64)
         self.assertEqual(force.shape, (3,))
 
-    def test_calculate_force_magnitude_no_alpha_dependence(self):
+    def test_aqf_magnitude_no_alpha_dependence(self):
         """Test that the magnitude of force is the same for all alpha, only the
         direction changes."""
 
-        srp = 1
-        beta = 0.1
-        mag_0 = np.linalg.norm(WRIGHT_SAIL.calculate_force(srp, 0, beta))
+        mag_0 = np.linalg.norm(WRIGHT_SAIL.aqf(0, WRIGHT_CASE1.beta))
 
-        for alpha in np.arange(0, 2 * np.pi):
+        for alpha in np.arange(0, 2 * np.pi, step=0.1):
             self.assertAlmostEqual(
                 mag_0,
-                np.linalg.norm(WRIGHT_SAIL.calculate_force(srp, alpha, beta)),
+                np.linalg.norm(WRIGHT_SAIL.aqf(alpha, WRIGHT_CASE1.beta)),
             )

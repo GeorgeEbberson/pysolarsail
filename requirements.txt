@@ -1,2 +1,8 @@
-numba>=0.53
+# Dependencies for the package to run. Versions required, keep alphabetical.
+numba>=0.54
 numpy>=1.20
+scipy>=1.7
+spiceypy>=4
+
+# Extra dependencies for development. Versions not essential.
+matplotlib

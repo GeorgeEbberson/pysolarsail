@@ -8,9 +8,23 @@ build-backend = "setuptools.build_meta"
 [tool.mypy]
 warn_return_any = true
 warn_unused_configs = true
-files = "src/pysolarsail/**/*.py"
+files = "src/pysolarsail/**/*.py, spiceypy/*.pyi"
 plugins = "numpy.typing.mypy_plugin"
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = "numba.*"
 ignore_missing_imports = true
+
+[tool.isort]
+known_third_party = "spiceypy"
+
+[tool.pytest.ini_options]
+markers = [
+    "unit: Unit tests.",
+    "integration: Integration tests.",
+    "validation: Validation tests."
+]

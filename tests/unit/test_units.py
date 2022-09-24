@@ -2,17 +2,21 @@
 Test the units module from pysolarsail.
 """
 import re
-import unittest
 from random import random
+
+import pytest
 
 import pysolarsail.units
 from pysolarsail.units import M_PER_AU, au_to_m, m_to_au
+
+from ..common_test_utils import TestCase
 
 # Regex which matches all constants.
 CONSTANT_REGEX = re.compile("[A-Z][A-Z0-9_]+")
 
 
-class TestConstants(unittest.TestCase):
+@pytest.mark.unit
+class TestConstants(TestCase):
     """Ensure that all constants exist and are floats."""
 
     def test_constants_are_floats(self):
@@ -23,7 +27,8 @@ class TestConstants(unittest.TestCase):
                 self.assertIsInstance(getattr(pysolarsail.units, name), float)
 
 
-class TestConversions(unittest.TestCase):
+@pytest.mark.unit
+class TestConversions(TestCase):
     """Very simple conversion tests."""
 
     def test_m_to_au(self):
