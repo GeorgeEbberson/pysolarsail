@@ -6,3 +6,4 @@ spiceypy>=4
 
 # Extra dependencies for development. Versions not essential.
 matplotlib
+pandas  # Used for debug telemetry.

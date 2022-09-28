@@ -13,7 +13,7 @@ from pysolarsail.spacecraft import SolarSailcraft, solve_rkf
 from pysolarsail.spice import SpiceKernel, get_eph_time
 from pysolarsail.units import M_PER_AU, SOLAR_IRRADIANCE_W_M2
 
-from ..common_test_utils import TestCase
+from tests.common_test_utils import TestCase
 
 @pytest.mark.validation
 class TestDachwald(TestCase):
@@ -45,8 +45,8 @@ class TestDachwald(TestCase):
             if self.SHOULD_PLOT:
                 fig = plt.figure()
                 plt.title("rkf")
-                plt.plot(results[:, 2] / M_PER_AU, results[:, 3] / M_PER_AU, "-k")
-                plt.plot(results[:, 25] / M_PER_AU, results[:, 26] / M_PER_AU, "-r")
+                plt.plot(results["craft_pos_x"] / M_PER_AU, results["craft_pos_y"] / M_PER_AU, "-k")
+                plt.plot(results["mercury_pos_x"] / M_PER_AU, results["mercury_pos_y"] / M_PER_AU, "-r")
                 ax = plt.gca()
                 ax.spines['top'].set_color('none')
                 ax.spines['left'].set_position('zero')

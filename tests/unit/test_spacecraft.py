@@ -10,7 +10,6 @@ import pytest
 from parameterized import parameterized
 
 from pysolarsail.spacecraft import (
-    SolarSailcraft,
     compute_k,
     rkf_step,
     solarsail_acceleration,
@@ -19,7 +18,7 @@ from pysolarsail.spacecraft import (
 )
 from pysolarsail.units import M_PER_AU, SPEED_OF_LIGHT_M_S
 
-from ..common_test_utils import TestCase
+from ..common_test_utils import TestCase, skip
 
 # Test cases for the RKF method.
 RkfTestCase = namedtuple(
@@ -271,6 +270,7 @@ class TestRkf(TestCase):
         self.assertArrayAlmostEqual(z_kplus1, case.zkplus1)
 
     @parameterized.expand(RKF_TEST_CASES)
+    @skip("#3", "RKF testing approach is undecided")
     def test_solve_rkf(self, _, case):
         """RKF should be correct."""
 

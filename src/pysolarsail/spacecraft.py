@@ -9,6 +9,13 @@ from numba import float64, njit, objmode
 from numba.experimental import jitclass
 
 from pysolarsail.bodies import SpiceBody
+from pysolarsail.debugging import (
+    get_dump_and_reset_telemetry,
+    inc_time,
+    init_telemetry,
+    telemetry,
+    telemetry_3vec,
+)
 from pysolarsail.numba_utils import class_spec
 from pysolarsail.sail_properties import SailProperties
 from pysolarsail.units import M_PER_AU, SECS_PER_DAY, SPEED_OF_LIGHT_M_S
@@ -232,6 +239,8 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-5
     X = get_init_state(craft)
     t = start_time
 
+    init_telemetry(t)
+
     # p is the order of RK to use. This is RKF45, therefore RK4.
     p = 4
     # Beta is the fraction to adjust by when changing timestep.
@@ -240,6 +249,7 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-5
     results_list = []
 
     while t < end_time:
+        inc_time(t)
         step_accepted = False
         num_steps = 0
         while not step_accepted:
@@ -260,21 +270,25 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-5
 
         X = ykplus1
         t += dt
-        results = [
-            t,
-            dt,
-            X[0, 0], X[0, 1], X[0, 2],
-            X[1, 0], X[1, 1], X[1, 2],
-            epsilon,
-            ykplus1[0, 0], ykplus1[0, 1], ykplus1[0, 2],
-            ykplus1[1, 0], ykplus1[1, 1], ykplus1[1, 2],
-            zkplus1[0, 0], zkplus1[0, 1], zkplus1[0, 2],
-            zkplus1[1, 0], zkplus1[1, 1], zkplus1[1, 2],
-            num_steps,
-        ]
-        positions = sum([body.pos_m.tolist() for body in model], [])
-        vels = sum([body.vel_m_s.tolist() for body in model], [])
-        results_list.append(results + positions + vels)
+
+        telemetry(timestep=dt, epsilon=epsilon, num_steps=num_steps)
+        telemetry_3vec(
+            craft_pos=X[0, :],
+            craft_vel=X[1, :],
+            ykplus1_pos=ykplus1[0, :],
+            ykplus1_vel=ykplus1[1, :],
+            zkplus1_pos=zkplus1[0, :],
+            zkplus1_vel=zkplus1[1, :],
+        )
+
+        for body in model:
+            telemetry_3vec(
+                **{
+                    f"{body.name.lower()}_pos": body.pos_m,
+                    f"{body.name.lower()}_vel": body.vel_m_s,
+                }
+            )
+
         dt = dt_new
 
-    return np.array(results_list)
+    return get_dump_and_reset_telemetry("myfile.csv")
