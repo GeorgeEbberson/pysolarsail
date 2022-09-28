@@ -58,7 +58,7 @@ RKF_TEST_CASES = [
 ONE_OVER_ROOT_3 = [np.sqrt(3) / 3, np.sqrt(3) / 3, np.sqrt(3) / 3]
 ROOT_2_ON_2 = np.sqrt(2) / 2
 
-SRP_0 = (M_PER_AU ** 2) / SPEED_OF_LIGHT_M_S
+SRP_0 = (M_PER_AU**2) / SPEED_OF_LIGHT_M_S
 
 
 def add_prop_mock(obj, name, **kwargs):
@@ -76,10 +76,16 @@ def mock_spacecraft(aqf, pos, vel, mass=1, alpha=None, beta=None):
 
     spacecraft = MagicMock()
     spacecraft.sail = MagicMock()
-    spacecraft.sail.aqf = MagicMock(side_effect=[np.array(x, dtype=np.float64) for x in aqf])
+    spacecraft.sail.aqf = MagicMock(
+        side_effect=[np.array(x, dtype=np.float64) for x in aqf]
+    )
 
-    add_prop_mock(spacecraft, "pos_m", side_effect=[np.array(x, dtype=np.float64) for x in pos])
-    add_prop_mock(spacecraft, "vel_m_s", side_effect=[np.array(x, dtype=np.float64) for x in vel])
+    add_prop_mock(
+        spacecraft, "pos_m", side_effect=[np.array(x, dtype=np.float64) for x in pos]
+    )
+    add_prop_mock(
+        spacecraft, "vel_m_s", side_effect=[np.array(x, dtype=np.float64) for x in vel]
+    )
     add_prop_mock(spacecraft, "mass", return_value=mass)
     add_prop_mock(spacecraft, "alpha_rad", side_effect=[0] if alpha is None else alpha)
     add_prop_mock(spacecraft, "beta_rad", side_effect=[0] if beta is None else beta)
@@ -97,7 +103,9 @@ def mock_body(pos: list, gravity=True, radiation=0, grav_param=1):
     add_prop_mock(body, "radiation_w_m2", return_value=radiation)
     add_prop_mock(body, "is_star", return_value=True if radiation != 0 else False)
     add_prop_mock(body, "gravitation_parameter_m3_s2", return_value=grav_param)
-    add_prop_mock(body, "pos_m", side_effect=[np.array(x, dtype=np.float64) for x in pos])
+    add_prop_mock(
+        body, "pos_m", side_effect=[np.array(x, dtype=np.float64) for x in pos]
+    )
 
     return body
 
@@ -231,9 +239,7 @@ class TestRkf(TestCase):
             beta=[0 for _ in bodies],
         )
 
-        bds = [
-            mock_body([pos], radiation=rad, grav_param=0) for pos, _, rad in bodies
-        ]
+        bds = [mock_body([pos], radiation=rad, grav_param=0) for pos, _, rad in bodies]
         accel = solarsail_acceleration(sc, bds, np.zeros((2, 3)))
         exp_accel = [0, 0, 0]
         self.assertArrayAlmostEqual(
@@ -249,7 +255,7 @@ class TestRkf(TestCase):
         Test function is x^2 * sin(x) so d/dx = 2x*sin(x) + cos(x)*x^2.
         """
 
-        with patch("pysolarsail.spacecraft.rkf_rhs", wraps=case.fn) as fn:
+        with patch("pysolarsail.spacecraft.rkf_rhs", wraps=case.fn) as fn:  # noqa: F841
             k = compute_k(case.x0, case.y0, case.dx, None, None)
 
         for idx, kx in enumerate(case.k):
@@ -263,7 +269,7 @@ class TestRkf(TestCase):
     def test_rkf_step(self, _, case):
         """y and z should be correct."""
 
-        with patch("pysolarsail.spacecraft.rkf_rhs", wraps=case.fn) as fn:
+        with patch("pysolarsail.spacecraft.rkf_rhs", wraps=case.fn) as fn:  # noqa: F841
             y_kplus1, z_kplus1 = rkf_step(case.dx, case.x0, case.y0, None, None)
 
         self.assertArrayAlmostEqual(y_kplus1, case.ykplus1)
@@ -274,11 +280,9 @@ class TestRkf(TestCase):
     def test_solve_rkf(self, _, case):
         """RKF should be correct."""
 
-        with patch(
-            "pysolarsail.spacecraft.get_init_state"
-        ) as init, patch(
+        with patch("pysolarsail.spacecraft.get_init_state") as init, patch(
             "pysolarsail.spacecraft.rkf_rhs", wraps=case.fn
-        ) as rhs_fn:
+        ) as rhs_fn:  # noqa: F841
             init.return_value = np.ones((2, 3)) * case.x0
             results = solve_rkf(
                 None,

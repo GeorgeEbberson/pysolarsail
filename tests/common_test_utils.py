@@ -5,8 +5,8 @@ import logging
 import os
 import unittest
 
-import pytest
 import numpy as np
+import pytest
 from parameterized import parameterized
 
 LOGGER = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def skip(gh_issue, description):
 def cases(iter_of_cases):
     """Expand cases strictly on a test class (i.e. cases are methods)."""
     return parameterized.expand(
-        [x if isinstance(x, tuple) else (x, ) for x in iter_of_cases]
+        [x if isinstance(x, tuple) else (x,) for x in iter_of_cases]
     )
 
 

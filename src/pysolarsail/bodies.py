@@ -15,7 +15,7 @@ SPICE_BODY_SPEC = [
     ("vel_m_s", float64[::1]),
     ("gravitation_parameter_m3_s2", float64),
     ("radiation_w_m2", float64),
-    ("gravity", boolean)
+    ("gravity", boolean),
 ]
 
 

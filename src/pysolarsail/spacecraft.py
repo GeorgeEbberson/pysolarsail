@@ -24,15 +24,16 @@ from pysolarsail.units import M_PER_AU, SECS_PER_DAY, SPEED_OF_LIGHT_M_S
 # https://maths.cnam.fr/IMG/pdf/RungeKuttaFehlbergProof.pdf
 # repeated in the Butcher tableau on this page:
 # https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta%E2%80%93Fehlberg_method
+# fmt: off
 RKF_H_COEFFS = np.array([0, 1 / 4, 3 / 8, 12 / 13, 1, 1 / 2], dtype=np.float64)
 _RKF_K_COEFFS = np.array(
     [
-        [          0,            0,            0,           0,        0, 0],
-        [      1 / 4,            0,            0,           0,        0, 0],
-        [     3 / 32,       9 / 32,            0,           0,        0, 0],
-        [1932 / 2197, -7200 / 2197,  7296 / 2197,           0,        0, 0],
-        [  439 / 216,           -8,   3680 / 513, -845 / 4104,        0, 0],
-        [    -8 / 27,            2, -3544 / 2565, 1859 / 4104, -11 / 40, 0],
+        [          0,            0,            0,           0,        0, 0],  # noqa
+        [      1 / 4,            0,            0,           0,        0, 0],  # noqa
+        [     3 / 32,       9 / 32,            0,           0,        0, 0],  # noqa
+        [1932 / 2197, -7200 / 2197,  7296 / 2197,           0,        0, 0],  # noqa
+        [  439 / 216,           -8,   3680 / 513, -845 / 4104,        0, 0],  # noqa
+        [    -8 / 27,            2, -3544 / 2565, 1859 / 4104, -11 / 40, 0],  # noqa
     ],
     dtype=np.float64,
 )
@@ -44,6 +45,7 @@ _RKF_ZPLUS_COEFFS = np.array(
     [16 / 135, 0, 6656 / 12825, 28561 / 56430, -9 / 50, 2 / 55],
     dtype=np.float64,
 )
+# fmt: on
 
 # Now we have to precompute each of the above as a 4-D equivalent because np.newaxis is
 # unsupported.
@@ -95,7 +97,6 @@ class SolarSailcraft(object):
         self.char_accel = np.nan
         self.set_mass_and_char_accel(mass, char_accel)
 
-
         self._alpha_steering_angles = _load_csv(alpha_file, start_time)
         self._beta_steering_angles = _load_csv(beta_file, start_time)
 
@@ -111,9 +112,13 @@ class SolarSailcraft(object):
             self._beta_steering_angles[:, 1],
         )
 
-    def set_mass_and_char_accel(self, mass: Optional[float], char_accel: Optional[float]):
+    def set_mass_and_char_accel(
+        self, mass: Optional[float], char_accel: Optional[float]
+    ):
         """Calculate and set the mass and characteristic acceleration of the sail."""
-        if (mass is None and char_accel is None) or (mass is not None and char_accel is not None):
+        if (mass is None and char_accel is None) or (
+            mass is not None and char_accel is not None
+        ):
             raise ValueError("Must give exactly one of mass and char accel.")
 
         if char_accel is not None:
@@ -122,9 +127,8 @@ class SolarSailcraft(object):
             self.mass = self.sail.mass_for_char_accel(char_accel)
 
         # Should be impossible.
-        assert (self.char_accel != np.nan)
-        assert (self.mass != np.nan)
-
+        assert self.char_accel != np.nan
+        assert self.mass != np.nan
 
 
 @njit
@@ -159,7 +163,7 @@ def solarsail_acceleration(
         sail_contrib = (
             (
                 body.radiation_w_m2
-                * (M_PER_AU ** 2)
+                * (M_PER_AU**2)
                 * craft.sail.aqf(craft.alpha_rad, craft.beta_rad)
                 / (SPEED_OF_LIGHT_M_S * craft.mass)
             )
@@ -167,7 +171,7 @@ def solarsail_acceleration(
             else np.array([0, 0, 0], dtype=np.float64)
         )
         gravity_contrib = body.gravitation_parameter_m3_s2 * craft_to_body_unit_vec
-        accel[idx, :] = ((1 / (rad ** 2)) * (gravity_contrib + sail_contrib))
+        accel[idx, :] = (1 / (rad**2)) * (gravity_contrib + sail_contrib)
     return np.sum(accel, axis=0)
 
 
@@ -246,8 +250,6 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-5
     # Beta is the fraction to adjust by when changing timestep.
     beta = 0.9
 
-    results_list = []
-
     while t < end_time:
         inc_time(t)
         step_accepted = False
@@ -255,7 +257,7 @@ def solve_rkf(craft, start_time, end_time, model, init_time_step=86400, tol=1e-5
         while not step_accepted:
             num_steps += 1
             ykplus1, zkplus1 = rkf_step(dt, t, X, model, craft)
-            epsilon = np.max(np.abs(zkplus1 - ykplus1) / ((2 ** p) - 1))
+            epsilon = np.max(np.abs(zkplus1 - ykplus1) / ((2**p) - 1))
             if epsilon == 0:
                 step_accepted = True
                 dt_new = dt
