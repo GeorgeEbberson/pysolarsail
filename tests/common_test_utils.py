@@ -86,3 +86,13 @@ class TestCase(unittest.TestCase):
             equal_nan=equal_nan,
             **kwargs,
         )
+
+    def assertFloatEqual(
+        self,
+        actual: float,
+        desired: float,
+        rtol=FLOAT_EQUAL_PRECISION_RTOL,
+        atol=FLOAT_EQUAL_PRECISION_ATOL,
+    ) -> None:
+        """Wrapper for float equality within bounds."""
+        self.assertTrue(abs(actual - desired) < (atol + rtol * abs(desired)))

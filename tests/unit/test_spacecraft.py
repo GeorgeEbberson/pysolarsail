@@ -132,7 +132,7 @@ class TestRkf(TestCase):
         """Check that the proper unit vector and magnitude are returned."""
         unit, mag = unit_vector_and_mag(np.array(in_vec))
         self.assertArrayEqual(unit, exp_vec)
-        self.assertEqual(exp_mag, mag)
+        self.assertFloatEqual(exp_mag, mag)
 
     def test_solarsail_acceleration_no_bodies(self):
         """Check that accel is zero for no bodies."""
