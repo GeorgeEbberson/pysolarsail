@@ -4,7 +4,7 @@ Constant values and conversions between units.
 from numba import float64, jit
 from spiceypy import clight, spd
 
-##### BASE CONSTANTS #####
+# ===== BASE CONSTANTS =====
 
 # Number of seconds in a 24-hour day.
 SECS_PER_DAY = spd()
@@ -28,9 +28,9 @@ SOLAR_IRRADIANCE_W_M2 = 1360.8
 # Newton's gravitational constant.
 # https://physics.nist.gov/cgi-bin/cuu/Value?bg
 # The CODATA recommended values 2018
-CONSTANT_OF_GRAVITATION_M3_KG_S2 = 6.67530E-11
+CONSTANT_OF_GRAVITATION_M3_KG_S2 = 6.67530e-11
 
-##### DERIVED CONSTANTS #####
+# ===== DERIVED CONSTANTS =====
 
 # Solar radiation pressure at Earth.
 SOLAR_RADIATION_PRESSURE_P0 = SOLAR_IRRADIANCE_W_M2 / SPEED_OF_LIGHT_M_S

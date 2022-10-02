@@ -10,3 +10,6 @@ dist/
 *.pyc
 .coverage
 coverage.xml
+
+# Output files
+*.csv

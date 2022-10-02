@@ -88,7 +88,9 @@ class SailProperties(object):
 
     def mass_for_char_accel(self, char_accel: float) -> float:
         """Calculate the mass for this sail to give a characteristic acceleration."""
-        return SOLAR_RADIATION_PRESSURE_P0 * (self.G + self.K) * self.area_m2 / char_accel
+        return (
+            SOLAR_RADIATION_PRESSURE_P0 * (self.G + self.K) * self.area_m2 / char_accel
+        )
 
 
 @njit

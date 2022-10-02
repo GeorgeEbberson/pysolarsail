@@ -130,7 +130,7 @@ def get_gravity(name: str) -> float:
     """Return the gravitational parameter (G * M) for a body."""
     with objmode(gm="float64"):
         gm = cast(float, spiceypy.bodvrd(name, "GM", maxn=1)[1])
-    return gm * (1000 ** 3)  # SPICE uses km^3 / s^2
+    return gm * (1000**3)  # SPICE uses km^3 / s^2
 
 
 def check_kernels_loaded(

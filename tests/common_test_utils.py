@@ -6,6 +6,8 @@ import os
 import unittest
 
 import numpy as np
+import pytest
+from parameterized import parameterized
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +32,18 @@ def load_env_variable_true_false(name):
         res = False
     LOGGER.info(f"{name} is {res}")
     return res
+
+
+def skip(gh_issue, description):
+    """Mark a test as skipped against the relevant GitHub issue."""
+    return pytest.mark.skip(reason=f"{gh_issue}: {description}")
+
+
+def cases(iter_of_cases):
+    """Expand cases strictly on a test class (i.e. cases are methods)."""
+    return parameterized.expand(
+        [x if isinstance(x, tuple) else (x,) for x in iter_of_cases]
+    )
 
 
 class TestCase(unittest.TestCase):
@@ -72,3 +86,13 @@ class TestCase(unittest.TestCase):
             equal_nan=equal_nan,
             **kwargs,
         )
+
+    def assertFloatEqual(
+        self,
+        actual: float,
+        desired: float,
+        rtol=FLOAT_EQUAL_PRECISION_RTOL,
+        atol=FLOAT_EQUAL_PRECISION_ATOL,
+    ) -> None:
+        """Wrapper for float equality within bounds."""
+        self.assertTrue(abs(actual - desired) < (atol + rtol * abs(desired)))

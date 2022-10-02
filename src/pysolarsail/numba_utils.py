@@ -3,7 +3,6 @@ Utilities for improving/working with numba.
 """
 import os
 
-
 try:
     _JITTING = False if os.environ["NUMBA_DISABLE_JIT"] == "1" else True
 except KeyError:
