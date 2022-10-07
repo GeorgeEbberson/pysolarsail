@@ -14,10 +14,11 @@ from pysolarsail.spice import SpiceKernel, get_eph_time
 from pysolarsail.units import M_PER_AU, SOLAR_IRRADIANCE_W_M2
 from tests.common_test_utils import TestCase
 
-
 @pytest.mark.validation
 class TestDachwald(TestCase):
     """Tests from Dachwald's cases."""
+
+    KERNELS = ("mercury_rendezvous.bsp", "naif0012.tls", "pck00010.tpc", "gm_de431.tpc")
 
     def test_dachwald_mercury(self):
         """Test that we achieve Dachwald's Mercury Rendezvous."""

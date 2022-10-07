@@ -134,26 +134,58 @@ def get_gravity(name: str) -> float:
 
 
 def check_kernels_loaded(
-    name: str,
+    names: Iterable[str],
     start_date: datetime,
     end_date: datetime,
 ) -> bool:
-    """Check that kernel data is loaded for the given body between the given times."""
+    """Check that kernel data is loaded for the given body between the given times.
 
+    Iterates over the bodies one by one, using the underlying SPICE functions to
+    check whether kernel data is loaded for the time covered. In the event that
+    multiple kernels cover the same time window, the discovery of the first
+    matching window causes True.
+
+    :param names: An iterable of strings of body names.
+    :param start_date: A datetime representing the start of the window.
+    :param end_data: A datetime representing the end of the window.
+    """
     window = (get_eph_time(start_date), get_eph_time(end_date))
-    body = spiceypy.bods2c(name)
 
-    for idx in range(spiceypy.ktotal("SPK")):
-        data = spiceypy.kdata(idx, "SPK")
-        file = str(Path(data[2]).parent / data[0])
-        for idcode in spiceypy.spkobj(file):
-            win = spiceypy.spkcov(file, idcode)
-            for j in range(spiceypy.wncard(win)):
-                win_begin, win_end = spiceypy.wnfetd(win, j)
-                if win_begin < window[0] and win_end > window[1] and idcode == body:
+    return all(
+        [
+            is_kernel_loaded_for_one_body(name, window)
+            for name in names
+        ]
+    )
+
+
+def is_kernel_loaded_for_one_body(name, window):
+    """Check if a kernel is loaded covering one body."""
+    for file in loaded_kernel_files("SPK"):
+        if win := spiceypy.spkcov(file, spiceypy.bods2c(name)):
+            for interval in intervals_in_window(win):
+                if interval_contains_interval(interval, window):
                     return True
-
     return False
+
+
+def intervals_in_window(window):
+    """Generator of the intervals within a window."""
+    for idx in range(spiceypy.wncard(window)):
+        yield spiceypy.wnfetd(window, idx)
+
+
+def loaded_kernel_files(kernel_type):
+    """Generator of the files that are currently loaded."""
+    for idx in range(spiceypy.ktotal(kernel_type)):
+        k_name, k_type, k_source, _ = spiceypy.kdata(idx, kernel_type)
+        assert k_type == kernel_type, f"Kernel type {k_type} does not match {kernel_type}"
+        yield str(Path(k_source).parent / k_name)  # By convention we give kernels relative to their meta.
+
+
+def interval_contains_interval(container, contained):
+    """Return True if contained lies wholly within container."""
+    return container[0] <= contained[0] < contained[1] <= container[1]  # since windows should be sorted.
 
 
 # Useful stuff = https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/index.html
