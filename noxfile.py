@@ -34,6 +34,7 @@ LINT_DEPS = (
 
 nox.options.sessions = ["lint", "unit", "validation"]
 
+
 def install_all(session, extra_deps):
     """Install all deps."""
     session.install("--upgrade", "pip")
@@ -41,29 +42,6 @@ def install_all(session, extra_deps):
     session.install(*extra_deps)
     session.install("-e", f"{PYSOLARSAIL_DIR}")
 
-
-@nox.session
-def unit(session):
-    """Unit tests."""
-    install_all(session, UNIT_TEST_DEPS)
-    session.run(
-        "pytest", "-m", "unit", "-vv",
-        f"{UNIT_DIR}",
-        "--cov",
-        "--cov-report=xml:coverage.xml",
-        "--cov-report=term-missing",
-        "--cov-fail-under", "50",
-        env=ENV_VARS,
-    )
-
-@nox.session
-def validation(session):
-    """Validation tests for the solarsail model."""
-    install_all(session, UNIT_TEST_DEPS)
-    session.run(
-        "pytest", "-vv", f"{VALIDATION_DIR}",
-        env=ENV_VARS,
-    )
 
 @nox.session
 def lint(session):
@@ -80,3 +58,28 @@ def lint(session):
     session.run("black", *LINT_DIRS, "--diff", "--check")
     session.run("flake8", *LINT_DIRS, "--max-line-length", "88")
     #session.run("mypy")  # disabled see #4
+
+
+@nox.session
+def unit(session):
+    """Unit tests."""
+    install_all(session, UNIT_TEST_DEPS)
+    session.run(
+        "pytest", "-m", "unit", "-vv",
+        f"{UNIT_DIR}",
+        "--cov",
+        "--cov-report=xml:coverage.xml",
+        "--cov-report=term-missing",
+        "--cov-fail-under", "50",
+        env=ENV_VARS,
+    )
+
+
+@nox.session
+def validation(session):
+    """Validation tests for the solarsail model."""
+    install_all(session, UNIT_TEST_DEPS)
+    session.run(
+        "pytest", "-vv", f"{VALIDATION_DIR}",
+        env=ENV_VARS,
+    )
