@@ -28,3 +28,16 @@ markers = [
     "integration: Integration tests.",
     "validation: Validation tests."
 ]
+
+[tool.coverage.run]
+source = [
+    "pysolarsail"
+]
+omit = [
+    "tests/*"
+]
+
+[tool.coverage.paths]
+source = [
+    "src",
+]
