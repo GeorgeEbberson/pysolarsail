@@ -5,6 +5,10 @@ dist/
 # Other ignores.
 .idea/
 .tox/
+.vscode/
+
+# Don't check in data
+kernels/
 
 # Generated filetypes.
 *.pyc

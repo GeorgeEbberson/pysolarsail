@@ -12,22 +12,27 @@ from pysolarsail.sail_properties import null_sail
 from pysolarsail.spacecraft import SolarSailcraft, solve_rkf
 from pysolarsail.spice import SpiceKernel, get_eph_time
 from pysolarsail.units import CONSTANT_OF_GRAVITATION_M3_KG_S2, M_PER_AU
-from tests.common_test_utils import TestCase, cases
-
-DEBUG_PLOTS = False
+from tests.common_test_utils import KERNELS_DIR, TestCase, cases
+from tests.validation.test_dachwald import (
+    DACHWALD_MERCURY_ALPHA_FILE,
+    DACHWALD_MERCURY_BETA_FILE,
+    DACHWALD_MERCURY_KERNELS,
+)
 
 
 @pytest.mark.validation
 class TestOrbits(TestCase):
-    """Sanity checks to try and find the problem."""
+    """Sanity checks to try and find the problem.
+
+    Uses Dachwald's kernels and setup as it doesn't actually matter.
+    """
 
     @cases(
         ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Pluto"]
     )
     def test_planet_follows_orbit(self, name):
         """Simulate a planet and make sure it's close to the actual planet."""
-
-        with SpiceKernel(r"D:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
+        with SpiceKernel(DACHWALD_MERCURY_KERNELS, root=KERNELS_DIR):
             # Simulate the year 2020.
             start_time = get_eph_time(np.datetime64(datetime(2020, 1, 1, 12)))
             end_time = get_eph_time(np.datetime64(datetime(2021, 1, 1, 12)))
@@ -43,8 +48,8 @@ class TestOrbits(TestCase):
                 planet.pos_m,
                 planet.vel_m_s,
                 null_sail(),
-                r"D:\dev\solarsail\data\dachwald_mercury_alpha.csv",
-                r"D:\dev\solarsail\data\dachwald_mercury_beta.csv",
+                str(DACHWALD_MERCURY_ALPHA_FILE),
+                str(DACHWALD_MERCURY_BETA_FILE),
                 start_time,
                 mass=(
                     planet.gravitation_parameter_m3_s2
@@ -69,7 +74,7 @@ class TestOrbits(TestCase):
         craft_pos = results[craft_idx].values
         dists = np.linalg.norm(planet_pos - craft_pos, axis=1) / M_PER_AU
 
-        if DEBUG_PLOTS:
+        if self.SHOULD_PLOT:
             # Plot positions of
             fig = plt.figure()  # noqa: F841
             plt.plot(results[craft_idx[0]], results[craft_idx[1]])
