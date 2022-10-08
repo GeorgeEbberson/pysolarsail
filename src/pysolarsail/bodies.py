@@ -1,13 +1,11 @@
 """
 Solar system bodies.
 """
-from datetime import datetime
-
 import numpy as np
 from numba import boolean, float64, types
 from numba.experimental import jitclass
 
-from pysolarsail.spice import SpiceKernel, get_gravity, get_pos, get_vel
+from pysolarsail.spice import get_gravity, get_pos, get_vel
 
 SPICE_BODY_SPEC = [
     ("name", types.string),
@@ -52,17 +50,3 @@ class SpiceBody(object):
     def is_star(self) -> bool:
         """True if the body is a star."""
         return not self.radiation_w_m2 == 0.0
-
-
-if __name__ == "__main__":
-    with SpiceKernel(r"D:\dev\solarsail\src\solarsail\spice_files\metakernel.txt"):
-        s = SpiceBody(
-            "Sun",
-            np.datetime64(datetime(2020, 1, 1)),
-            np.datetime64(datetime(2021, 1, 1)),
-            radiation=1368,
-        )
-        print(s)
-        print(s.radiation_w_m2)
-        print(s.gravitation_parameter_m3_s2)
-        print(s.is_star)

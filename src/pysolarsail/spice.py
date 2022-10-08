@@ -7,7 +7,7 @@ from datetime import datetime
 from os import chdir
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Generator, Iterable, Union, cast
+from typing import Any, Generator, Iterable, Optional, Union, cast
 
 import numpy as np
 import spiceypy
@@ -59,6 +59,7 @@ class SpiceKernel(ContextDecorator):
         self,
         kernel_files: Union[str, Iterable[str]],
         allow_change_dir: bool = True,
+        root: Optional[Path] = None,
     ) -> None:
         """Initialise the context and check all given files are valid."""
 
@@ -66,6 +67,10 @@ class SpiceKernel(ContextDecorator):
         # iterable sequences in the class.
         if isinstance(kernel_files, str):
             kernel_files = [kernel_files]
+
+        # If we're given a root directory, append all the files to it.
+        if root is not None:
+            kernel_files = [root / x for x in kernel_files]
 
         # Now check each string in the list is a file, and convert to a list of pathlib
         # Path() objects.

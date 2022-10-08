@@ -3,6 +3,7 @@ Common test things.
 """
 import logging
 import os
+from pathlib import Path
 import unittest
 
 import numpy as np
@@ -19,6 +20,12 @@ FLOAT_EQUAL_PRECISION_ATOL = 1e-16
 # Strings to be considered true and false respectively. Should be all lowercase.
 TRUE_STRINGS = ("true", "y", "1")
 FALSE_STRINGS = ("false", "n", "0")
+
+# Folders
+PYSOLARSAIL_DIR = Path(__file__).parent.parent
+KERNELS_DIR = PYSOLARSAIL_DIR / "kernels"
+TEST_DIR = PYSOLARSAIL_DIR / "tests"
+VALIDATION_TEST_DIR = TEST_DIR / "validation"
 
 
 def load_env_variable_true_false(name):
