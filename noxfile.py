@@ -1,6 +1,7 @@
 """
 Definitions of nox jobs.
 """
+import os
 from pathlib import Path
 
 import nox
@@ -31,6 +32,14 @@ LINT_DEPS = (
     "mypy==0.910",
     "numpy>=1.20",
 )
+
+# A variable used to check if we're in GitHub or not.
+ON_GITHUB_VAR = "GITHUB_WORKSPACE"
+
+
+def running_on_github():
+    """Return True if currently running on GitHub."""
+    return ON_GITHUB_VAR in os.environ
 
 
 def install_all(session, extra_deps):
@@ -76,6 +85,8 @@ def unit(session):
 @nox.session
 def validation(session):
     """Validation tests for the solarsail model."""
+    if running_on_github():
+        session.skip("Validation is skipped on GitHub (#8, #9)")
     install_all(session, UNIT_TEST_DEPS)
     session.run(
         "pytest", "-vv", f"{VALIDATION_DIR}",
