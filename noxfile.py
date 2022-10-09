@@ -32,8 +32,6 @@ LINT_DEPS = (
     "numpy>=1.20",
 )
 
-nox.options.sessions = ["lint", "unit", "validation"]
-
 
 def install_all(session, extra_deps):
     """Install all deps."""
